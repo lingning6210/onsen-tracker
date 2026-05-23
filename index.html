@@ -101,7 +101,8 @@
   .onsen-list { padding: 10px 12px 12px; display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--border); background: #FDFAF8; }
   .onsen-btn { position: relative; display: inline-flex; }
   .onsen-chip { padding: 8px 14px; border-radius: 22px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text-mid); font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s; line-height: 1.3; }
-  .onsen-chip.visited { color: #fff; font-weight: 700; padding-right: 28px; }
+  .onsen-chip.visited { color: #fff; font-weight: 700; }
+  .visit-count { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 10px; background: rgba(255,255,255,0.28); font-size: 10px; font-weight: 700; }
   .onsen-edit { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 11px; color: rgba(255,255,255,.85); padding: 0; line-height: 1; }
   .date-badge { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); background: #fff; border-radius: 5px; padding: 1px 5px; font-size: 9px; font-weight: 700; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
   .with-badge { position: absolute; top: -8px; right: 0; border-radius: 5px; padding: 1px 5px; font-size: 9px; color: #fff; font-weight: 600; max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -359,24 +360,49 @@ const totalOnsen    = Object.values(ONSEN_DATA).flat().length;
 const ALL_REGIONS   = ["全国", ...Object.keys(REGIONS)];
 
 // ── STATE ──
-const SK = "onsen-v2";
-let visited = {};
+// visits: { [onsenName]: [{id, date, with, memo}, ...] }
+const SK = "onsen-v3";
+const SK_OLD = "onsen-v2";
+let visits = {};
 let activeRegion = "全国";
 let expanded = {};
 let currentTab = "list";
-let modalOnsen = null;
+let modalState = null; // { onsen, recordId|null }
 let sortMode = "date_desc";
-let noMemoOpen = false;
 
-try { const s = localStorage.getItem(SK); if (s) visited = JSON.parse(s); } catch {}
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function saveVisits() { try { localStorage.setItem(SK, JSON.stringify(visits)); } catch {} }
+function isVisited(onsen) { return !!(visits[onsen] && visits[onsen].length > 0); }
+function visitCount(onsen) { return (visits[onsen]||[]).length; }
+function escapeHTML(s) { return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function escapeJS(s)   { return String(s||"").replace(/'/g, "\\'"); }
 
-function saveVisited() {
-  try { localStorage.setItem(SK, JSON.stringify(visited)); } catch {}
-}
+// Load (with migration from v2)
+try {
+  const s = localStorage.getItem(SK);
+  if (s) {
+    visits = JSON.parse(s);
+  } else {
+    const old = localStorage.getItem(SK_OLD);
+    if (old) {
+      const v2 = JSON.parse(old);
+      Object.entries(v2).forEach(([onsen, entry]) => {
+        visits[onsen] = [{
+          id: genId(),
+          date: entry.date || "",
+          with: entry.with || "",
+          memo: entry.memo || "",
+        }];
+      });
+      saveVisits();
+    }
+  }
+} catch {}
 
 // ── STATS ──
 function updateStats() {
-  const cnt = Object.keys(visited).length;
+  const visitedOnsens = Object.keys(visits).filter(o => visits[o] && visits[o].length > 0);
+  const cnt = visitedOnsens.length;
   const pct = Math.round((cnt / totalOnsen) * 100);
   document.getElementById("visitedCount").textContent = cnt;
   document.getElementById("totalCount").textContent = totalOnsen;
@@ -384,12 +410,11 @@ function updateStats() {
   const circ = 2 * Math.PI * 22;
   document.getElementById("ringArc").setAttribute("stroke-dasharray", `${(pct/100)*circ} ${circ}`);
 
-  // region bars
   const bars = document.getElementById("regionBars");
   bars.innerHTML = Object.entries(REGIONS).map(([r, ps]) => {
     const c = RC[r];
     const tot = ps.flatMap(p => ONSEN_DATA[p]||[]).length;
-    const don = ps.flatMap(p => ONSEN_DATA[p]||[]).filter(o => visited[o]).length;
+    const don = ps.flatMap(p => ONSEN_DATA[p]||[]).filter(o => isVisited(o)).length;
     const p2  = tot ? Math.round((don/tot)*100) : 0;
     return `<div class="rbar" style="background:${c.bg};border-color:${c.light}">
       <div class="rbar-top">
@@ -403,9 +428,8 @@ function updateStats() {
     </div>`;
   }).join("");
 
-  // memo dot
-  const hasMemos = Object.values(visited).some(e => e && (e.date||e.memo||e.with));
-  document.getElementById("memoDot").classList.toggle("hidden", !hasMemos || currentTab === "memo");
+  const hasRecords = Object.values(visits).some(arr => arr && arr.length > 0);
+  document.getElementById("memoDot").classList.toggle("hidden", !hasRecords || currentTab === "memo");
 }
 
 // ── TAB SWITCH ──
@@ -438,7 +462,7 @@ function setRegion(r) {
   renderList();
 }
 
-// ── LIST RENDER ──
+// ── LIST RENDER (simplified) ──
 function renderList() {
   const q = document.getElementById("searchInput").value.trim();
   const prefs = Object.keys(ONSEN_DATA).filter(pref => {
@@ -452,24 +476,23 @@ function renderList() {
     const region = getPrefRegion(pref);
     const c = RC[region] || {bg:"#F5F5F5",acc:"#888",light:"#DDD",text:"#444",hex:"#888"};
     const total = ONSEN_DATA[pref].length;
-    const done  = ONSEN_DATA[pref].filter(o => visited[o]).length;
+    const done  = ONSEN_DATA[pref].filter(o => isVisited(o)).length;
     const pct   = total ? Math.round((done/total)*100) : 0;
     const isOpen = !!expanded[pref];
 
     const chips = isOpen ? ONSEN_DATA[pref].map(onsen => {
-      const isV = !!visited[onsen];
-      const entry = visited[onsen] || {};
+      const isV = isVisited(onsen);
+      const cnt = visitCount(onsen);
       return `<div class="onsen-btn">
         <button class="onsen-chip ${isV?"visited":""}"
           style="${isV ? `background:${c.acc};border-color:${c.acc}` : ""}"
-          onclick="toggleOnsen('${onsen}')">${isV?"✓ ":""}${onsen}</button>
-        ${isV ? `<button class="onsen-edit" onclick="openModal('${onsen}',false);event.stopPropagation()">✎</button>` : ""}
-        ${isV&&entry.date ? `<div class="date-badge" style="color:${c.hex};border-color:${c.hex}55">${entry.date}</div>` : ""}
-        ${isV&&entry.with ? `<div class="with-badge" style="background:${c.acc}">👥${entry.with}</div>` : ""}
+          onclick="addVisit('${escapeJS(onsen)}')">
+          ${isV?"✓ ":""}${escapeHTML(onsen)}${cnt>1?`<span class="visit-count">×${cnt}</span>`:""}
+        </button>
       </div>`;
     }).join("") : "";
 
-    return `<div class="pref-card" style="${done>0?`border-color:${c.hex}55;box-shadow:0 2px 12px ${c.hex}18`:""}" id="card-${pref}">
+    return `<div class="pref-card" style="${done>0?`border-color:${c.hex}55;box-shadow:0 2px 12px ${c.hex}18`:""}">
       <div class="pref-header" onclick="toggleExpand('${pref}')">
         <div class="pref-icon" style="background:${done>0?c.acc:"#EDE5DC"};${done>0?`box-shadow:0 2px 8px ${c.hex}44`:""};color:${done>0?"#fff":"#C0B0A0"}">♨</div>
         <div class="pref-info">
@@ -495,16 +518,9 @@ function toggleExpand(pref) {
   renderList();
 }
 
-function toggleOnsen(onsen) {
-  if (visited[onsen]) {
-    delete visited[onsen];
-    saveVisited();
-    updateStats();
-    renderList();
-    if (currentTab === "memo") renderMemo();
-  } else {
-    openModal(onsen, true);
-  }
+// Always opens modal to add new visit record (no toggle-off behavior)
+function addVisit(onsen) {
+  openModal(onsen, null);
 }
 
 // ── REGION VIEW ──
@@ -512,11 +528,11 @@ function renderRegion() {
   document.getElementById("regionContainer").innerHTML = Object.entries(REGIONS).map(([region, prefs]) => {
     const c = RC[region];
     const totalR = prefs.flatMap(p=>ONSEN_DATA[p]||[]).length;
-    const doneR  = prefs.flatMap(p=>ONSEN_DATA[p]||[]).filter(o=>visited[o]).length;
+    const doneR  = prefs.flatMap(p=>ONSEN_DATA[p]||[]).filter(o=>isVisited(o)).length;
     const pctR   = totalR ? Math.round((doneR/totalR)*100) : 0;
     const rows = prefs.map(pref => {
       const tot = ONSEN_DATA[pref].length;
-      const don = ONSEN_DATA[pref].filter(o=>visited[o]).length;
+      const don = ONSEN_DATA[pref].filter(o=>isVisited(o)).length;
       const p   = tot ? Math.round((don/tot)*100) : 0;
       return `<div class="pref-row">
         <div class="pref-row-top">
@@ -544,121 +560,125 @@ function renderRegion() {
   }).join("");
 }
 
-// ── MEMO VIEW ──
+// ── MEMO VIEW (one card per visit record) ──
 function setSort(mode) {
   sortMode = mode;
-  document.querySelectorAll(".sort-btn").forEach(b => b.classList.remove("active"));
+  const labels = {date_desc:"新しい順", date_asc:"古い順", name:"名前順"};
   document.querySelectorAll(".sort-btn").forEach(b => {
-    if (b.textContent === (mode==="date_desc"?"新しい順":mode==="date_asc"?"古い順":"名前順")) b.classList.add("active");
+    b.classList.toggle("active", b.textContent === labels[mode]);
   });
   renderMemo();
 }
 
 function renderMemo() {
-  const entries = Object.entries(visited).map(([onsen, entry]) => {
+  const allRecords = [];
+  Object.entries(visits).forEach(([onsen, arr]) => {
+    if (!arr) return;
     const pref = getOnsenPref(onsen) || "";
     const region = getPrefRegion(pref) || "";
-    return { onsen, pref, region, ...(entry||{}) };
+    arr.forEach(rec => {
+      allRecords.push({ onsen, pref, region, ...rec });
+    });
   });
 
-  entries.sort((a,b) => {
+  allRecords.sort((a,b) => {
     if (sortMode==="date_desc") return (b.date||"").localeCompare(a.date||"");
     if (sortMode==="date_asc")  return (a.date||"").localeCompare(b.date||"");
     return a.onsen.localeCompare(b.onsen,"ja");
   });
 
-  const withMemo = entries.filter(e => e.date||e.memo||e.with);
-  const noMemo   = entries.filter(e => !e.date&&!e.memo&&!e.with);
+  const totalVisits = allRecords.length;
+  const uniqueOnsens = new Set(allRecords.map(r => r.onsen)).size;
 
   document.getElementById("memoSummary").innerHTML =
-    `${entries.length}湯 訪問済み <span style="color:var(--text-muted);font-weight:400">（メモあり ${withMemo.length}件）</span>`;
+    `${uniqueOnsens}湯 訪問済み <span style="color:var(--text-muted);font-weight:400">（全${totalVisits}回の記録）</span>`;
 
   let html = "";
-
-  if (entries.length === 0) {
+  if (allRecords.length === 0) {
     html = `<div class="empty-state">
       <div class="empty-icon">♨</div>
       <div class="empty-title">まだ記録がありません</div>
-      <div class="empty-sub">一覧タブから温泉を訪問済みにしましょう</div>
+      <div class="empty-sub">一覧タブから温泉をタップして記録しましょう</div>
     </div>`;
   } else {
-    html += withMemo.map(e => memoCardHTML(e)).join("");
-
-    if (noMemo.length > 0) {
-      html += `<button class="no-memo-toggle" onclick="toggleNoMemo()">
-        <span>${noMemoOpen?"▼":"▶"}</span> メモ未記入の訪問済み（${noMemo.length}件）
-      </button>`;
-      if (noMemoOpen) {
-        html += `<div class="no-memo-chips">` + noMemo.map(e => {
-          const c = RC[e.region]||{acc:"#888",hex:"#888",light:"#DDD"};
-          return `<button class="no-memo-chip" onclick="openModal('${e.onsen}',false)" style="border-color:${c.light}">
-            <span style="color:${c.acc}">♨</span>${e.onsen}
-            <span style="font-size:10px;color:var(--text-muted)">＋メモ</span>
-          </button>`;
-        }).join("") + `</div>`;
-      }
-    }
+    html += allRecords.map(r => memoCardHTML(r)).join("");
   }
-
   document.getElementById("memoContainer").innerHTML = html;
 }
 
-function memoCardHTML(e) {
-  const c = RC[e.region] || {bg:"#F5F5F5",acc:"#888",light:"#DDD",text:"#444",hex:"#888"};
+function memoCardHTML(r) {
+  const c = RC[r.region] || {bg:"#F5F5F5",acc:"#888",light:"#DDD",text:"#444",hex:"#888"};
+  const arr = visits[r.onsen] || [];
+  const sortedByDate = [...arr].sort((a,b) => (a.date||"").localeCompare(b.date||""));
+  const visitNum = sortedByDate.findIndex(v => v.id === r.id) + 1;
+  const totalVisits = arr.length;
+
   const inner = `
-    ${e.date ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${e.date.replace(/-/g," / ")}</span></div>` : ""}
-    ${e.with ? `<div class="memo-row"><span class="memo-row-icon">👥</span><span>${e.with}</span></div>` : ""}
-    ${e.memo ? `<div class="memo-text-box" style="border-color:${c.acc}"><div class="memo-text">${e.memo.replace(/</g,"&lt;")}</div></div>` : ""}
-    ${!e.date&&!e.with&&!e.memo ? `<div class="memo-empty">メモなし — タップして追加</div>` : ""}
+    ${r.date ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${r.date.replace(/-/g," / ")}</span></div>` : ""}
+    ${r.with ? `<div class="memo-row"><span class="memo-row-icon">👥</span><span>${escapeHTML(r.with)}</span></div>` : ""}
+    ${r.memo ? `<div class="memo-text-box" style="border-color:${c.acc}"><div class="memo-text">${escapeHTML(r.memo)}</div></div>` : ""}
+    ${!r.date&&!r.with&&!r.memo ? `<div class="memo-empty">日付・メモなし — 編集から追加</div>` : ""}
   `;
-  return `<div class="memo-card" style="border-color:${c.light};${`box-shadow:0 2px 10px ${c.hex}12`}">
+  return `<div class="memo-card" style="border-color:${c.light};box-shadow:0 2px 10px ${c.hex}12">
     <div class="memo-card-head" style="background:${c.bg};border-color:${c.light}">
       <div class="memo-card-icon" style="background:${c.acc}">♨</div>
       <div class="memo-card-title">
-        <div class="memo-card-name">${e.onsen}</div>
+        <div class="memo-card-name">${escapeHTML(r.onsen)}${totalVisits>1?` <span style="font-size:11px;color:${c.acc};font-weight:600">（${visitNum}/${totalVisits}回目）</span>`:""}</div>
         <div class="memo-card-tags">
-          <span class="memo-tag" style="background:${c.light};color:${c.text}">${e.region}</span>
-          ${e.pref ? `<span style="font-size:9px;color:var(--text-muted)">${e.pref}</span>` : ""}
+          <span class="memo-tag" style="background:${c.light};color:${c.text}">${r.region}</span>
+          ${r.pref ? `<span style="font-size:9px;color:var(--text-muted)">${r.pref}</span>` : ""}
         </div>
       </div>
-      <button class="memo-edit-btn" style="border-color:${c.light};color:${c.text}" onclick="openModal('${e.onsen}',false)">編集</button>
+      <button class="memo-edit-btn" style="border-color:${c.light};color:${c.text}" onclick="openModal('${escapeJS(r.onsen)}','${r.id}')">編集</button>
     </div>
     <div class="memo-card-body">${inner}</div>
   </div>`;
 }
 
-function toggleNoMemo() {
-  noMemoOpen = !noMemoOpen;
-  renderMemo();
-}
-
 // ── MODAL ──
-function openModal(onsen, isNew) {
-  modalOnsen = onsen;
-  const entry = visited[onsen] || {};
+// recordId === null → adding new visit; recordId === string → editing
+function openModal(onsen, recordId) {
+  modalState = { onsen, recordId };
+  const isNew = !recordId;
+  let rec = { date: "", with: "", memo: "" };
+  if (recordId) {
+    rec = (visits[onsen]||[]).find(v => v.id === recordId) || rec;
+  } else {
+    rec.date = new Date().toISOString().slice(0, 10); // today
+  }
   document.getElementById("modalTitle").textContent = onsen;
-  document.getElementById("modalSubtitle").textContent = isNew ? "📍 訪問を記録" : "✏️ 記録を編集";
-  document.getElementById("fieldDate").value = entry.date || "";
-  document.getElementById("fieldWith").value = entry.with || "";
-  document.getElementById("fieldMemo").value = entry.memo || "";
+  const cnt = (visits[onsen]||[]).length;
+  document.getElementById("modalSubtitle").textContent = isNew
+    ? (cnt > 0 ? `📍 ${cnt+1}回目の訪問を記録` : "📍 訪問を記録")
+    : "✏️ 記録を編集";
+  document.getElementById("fieldDate").value = rec.date || "";
+  document.getElementById("fieldWith").value = rec.with || "";
+  document.getElementById("fieldMemo").value = rec.memo || "";
   document.getElementById("btnDelete").classList.toggle("hidden", isNew);
   document.getElementById("overlay").classList.add("open");
-  setTimeout(() => document.getElementById("fieldDate").focus(), 100);
 }
 
 function closeModal() {
   document.getElementById("overlay").classList.remove("open");
-  modalOnsen = null;
+  modalState = null;
 }
 
 function saveModal() {
-  if (!modalOnsen) return;
-  visited[modalOnsen] = {
+  if (!modalState) return;
+  const { onsen, recordId } = modalState;
+  const data = {
     date: document.getElementById("fieldDate").value,
     with: document.getElementById("fieldWith").value,
     memo: document.getElementById("fieldMemo").value,
   };
-  saveVisited();
+  if (!visits[onsen]) visits[onsen] = [];
+  if (recordId) {
+    const idx = visits[onsen].findIndex(v => v.id === recordId);
+    if (idx >= 0) visits[onsen][idx] = { id: recordId, ...data };
+  } else {
+    visits[onsen].push({ id: genId(), ...data });
+  }
+  saveVisits();
   closeModal();
   updateStats();
   renderList();
@@ -666,9 +686,14 @@ function saveModal() {
 }
 
 function deleteVisit() {
-  if (!modalOnsen) return;
-  delete visited[modalOnsen];
-  saveVisited();
+  if (!modalState || !modalState.recordId) return;
+  const { onsen, recordId } = modalState;
+  if (!confirm("この訪問記録を削除しますか？")) return;
+  if (visits[onsen]) {
+    visits[onsen] = visits[onsen].filter(v => v.id !== recordId);
+    if (visits[onsen].length === 0) delete visits[onsen];
+  }
+  saveVisits();
   closeModal();
   updateStats();
   renderList();
@@ -679,6 +704,7 @@ function deleteVisit() {
 initChips();
 updateStats();
 renderList();
+
 </script>
 </body>
 </html>
