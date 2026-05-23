@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>♨ 温泉巡り帳</title>
+<style>
+  :root {
+    --red: #C8503A;
+    --red-dark: #A83A1A;
+    --red-bg: #FEF0ED;
+    --red-light: #FFD8C5;
+    --bg: #F5F0EB;
+    --white: #ffffff;
+    --border: #E5DDD5;
+    --text: #1A1410;
+    --text-mid: #6A5A4A;
+    --text-muted: #A09080;
+    --tab-h: 56px;
+
+    --c1-bg:#EBF4FF; --c1-acc:#2E7DD1; --c1-light:#C8DFFF; --c1-text:#1A4F8A;
+    --c2-bg:#FFF3EE; --c2-acc:#D95A2B; --c2-light:#FFD8C5; --c2-text:#8A2E0A;
+    --c3-bg:#EDFAF4; --c3-acc:#1E9E62; --c3-light:#C0EDDA; --c3-text:#0D5E38;
+    --c4-bg:#F5EFFF; --c4-acc:#7C45D4; --c4-light:#DDD0FF; --c4-text:#4A1F9A;
+    --c5-bg:#FFFAEB; --c5-acc:#B8890A; --c5-light:#FFE9A0; --c5-text:#7A5500;
+    --c6-bg:#FFF0F5; --c6-acc:#C4245A; --c6-light:#FFD0E2; --c6-text:#7A0030;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Hiragino Sans','Yu Gothic UI',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: calc(var(--tab-h) + env(safe-area-inset-bottom)); }
+
+  /* ── Header ── */
+  .header { background: var(--white); border-bottom: 2px solid var(--border); padding: 16px 16px 14px; position: sticky; top: 0; z-index: 50; box-shadow: 0 1px 8px rgba(0,0,0,0.06); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg,#D4603A,#A83A1A); display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; box-shadow: 0 3px 10px #C8503A44; flex-shrink: 0; }
+  .logo-sub { font-size: 9px; color: var(--text-muted); letter-spacing: .15em; font-weight: 600; margin-bottom: 2px; }
+  .logo-title { font-size: 18px; font-weight: 800; }
+  .stats { display: flex; align-items: center; gap: 12px; }
+  .stat-count { text-align: right; }
+  .stat-num { font-size: 28px; font-weight: 800; color: var(--red); line-height: 1; }
+  .stat-label { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+  /* Progress ring */
+  .ring { flex-shrink: 0; }
+
+  /* Region bars */
+  .region-bars { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+  .rbar { border-radius: 8px; padding: 8px 10px; border: 1.5px solid; }
+  .rbar-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .rbar-name { font-size: 9px; font-weight: 700; }
+  .rbar-pct { font-size: 10px; font-weight: 800; }
+  .rbar-track { height: 5px; border-radius: 3px; margin-bottom: 3px; }
+  .rbar-fill { height: 100%; border-radius: 3px; transition: width .5s; }
+  .rbar-sub { font-size: 9px; opacity: .6; }
+
+  /* ── Bottom tabs ── */
+  .tabs { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); background: var(--white); border-top: 1.5px solid var(--border); display: flex; z-index: 100; box-shadow: 0 -2px 12px rgba(0,0,0,0.08); }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border: none; background: none; font-family: inherit; color: var(--text-muted); font-size: 10px; font-weight: 600; transition: color .15s; position: relative; padding: 0; }
+  .tab.active { color: var(--red); }
+  .tab-icon { font-size: 20px; line-height: 1; }
+  .tab-dot { position: absolute; top: 8px; right: calc(50% - 14px); width: 7px; height: 7px; border-radius: 50%; background: var(--red); border: 2px solid var(--white); }
+
+  /* ── Views ── */
+  .view { display: none; padding: 16px; }
+  .view.active { display: block; }
+
+  /* ── Search / filter bar ── */
+  .filterbar { background: var(--white); padding: 10px 16px; border-bottom: 1px solid var(--border); position: sticky; top: calc(44px + 14px + 14px + 5px + 3px + 60px + 2px); z-index: 40; }
+  .search-wrap { position: relative; margin-bottom: 10px; }
+  .search-wrap input { width: 100%; padding: 9px 12px 9px 34px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 14px; background: var(--bg); font-family: inherit; outline: none; color: var(--text); }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted); pointer-events: none; }
+  .region-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .region-chips::-webkit-scrollbar { display: none; }
+  .chip { padding: 5px 13px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 12px; font-weight: 500; white-space: nowrap; cursor: pointer; font-family: inherit; transition: all .15s; flex-shrink: 0; }
+  .chip.active { font-weight: 700; }
+
+  /* ── Pref cards ── */
+  .pref-card { background: var(--white); border-radius: 14px; overflow: hidden; border: 1.5px solid var(--border); margin-bottom: 10px; box-shadow: 0 1px 5px rgba(0,0,0,0.04); transition: border-color .2s, box-shadow .2s; }
+  .pref-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; }
+  .pref-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; transition: background .2s; }
+  .pref-info { flex: 1; min-width: 0; }
+  .pref-name-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .pref-name { font-size: 15px; font-weight: 800; }
+  .pref-region-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .pref-mastered { font-size: 9px; background: #FFD700; color: #7A5A00; padding: 2px 7px; border-radius: 10px; font-weight: 800; }
+  .pref-bar-row { display: flex; align-items: center; gap: 8px; }
+  .pref-track { flex: 1; height: 6px; background: #EDE5DC; border-radius: 3px; }
+  .pref-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+  .pref-fraction { font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  .pref-arrow { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
+  /* onsen list */
+  .onsen-list { padding: 10px 12px 12px; display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--border); background: #FDFAF8; }
+  .onsen-btn { position: relative; display: inline-flex; }
+  .onsen-chip { padding: 8px 14px; border-radius: 22px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text-mid); font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 500; transition: all .15s; line-height: 1.3; }
+  .onsen-chip.visited { color: #fff; font-weight: 700; padding-right: 28px; }
+  .onsen-edit { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 11px; color: rgba(255,255,255,.85); padding: 0; line-height: 1; }
+  .date-badge { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); background: #fff; border-radius: 5px; padding: 1px 5px; font-size: 9px; font-weight: 700; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  .with-badge { position: absolute; top: -8px; right: 0; border-radius: 5px; padding: 1px 5px; font-size: 9px; color: #fff; font-weight: 600; max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── Region view ── */
+  .region-card { background: var(--white); border-radius: 14px; overflow: hidden; margin-bottom: 12px; border: 1.5px solid; box-shadow: 0 1px 5px rgba(0,0,0,0.04); }
+  .region-head { padding: 14px 16px 12px; border-bottom: 1.5px solid; }
+  .region-head-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .region-head-name { font-size: 14px; font-weight: 800; }
+  .region-head-pct { font-size: 24px; font-weight: 800; line-height: 1; }
+  .region-head-sub { font-size: 10px; opacity: .65; margin-top: 4px; }
+  .region-body { padding: 12px 16px 14px; }
+  .pref-row { margin-bottom: 9px; }
+  .pref-row-top { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .pref-row-name { font-size: 12px; }
+  .pref-row-frac { font-size: 11px; font-weight: 700; }
+
+  /* ── Memo tab ── */
+  .memo-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 8px; flex-wrap: wrap; }
+  .memo-summary { font-size: 13px; color: var(--text-mid); font-weight: 700; }
+  .sort-group { display: flex; background: #EDE5DC; border-radius: 8px; padding: 3px; gap: 2px; }
+  .sort-btn { padding: 5px 10px; border-radius: 6px; border: none; cursor: pointer; font-size: 11px; font-weight: 700; font-family: inherit; background: transparent; color: var(--text-muted); transition: all .15s; }
+  .sort-btn.active { background: var(--red); color: #fff; }
+
+  .memo-card { background: var(--white); border-radius: 14px; overflow: hidden; border: 1.5px solid; margin-bottom: 12px; }
+  .memo-card-head { padding: 12px 14px 10px; border-bottom: 1px solid; display: flex; align-items: center; gap: 10px; }
+  .memo-card-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; color: #fff; flex-shrink: 0; }
+  .memo-card-title { flex: 1; min-width: 0; }
+  .memo-card-name { font-size: 15px; font-weight: 800; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .memo-card-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+  .memo-tag { font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
+  .memo-edit-btn { border: 1.5px solid; border-radius: 8px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer; background: none; font-family: inherit; flex-shrink: 0; }
+  .memo-card-body { padding: 12px 14px; }
+  .memo-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; font-size: 13px; color: var(--text-mid); }
+  .memo-row-icon { flex-shrink: 0; }
+  .memo-text-box { background: #FAF7F4; border-radius: 10px; padding: 10px 12px; border-left: 3px solid; margin-top: 8px; }
+  .memo-text { font-size: 12px; color: var(--text-mid); line-height: 1.7; white-space: pre-wrap; }
+  .memo-empty { color: var(--text-muted); font-size: 12px; font-style: italic; }
+
+  .no-memo-toggle { display: flex; align-items: center; gap: 6px; background: none; border: 1.5px solid var(--border); border-radius: 10px; padding: 9px 14px; cursor: pointer; font-family: inherit; font-size: 12px; color: var(--text-mid); font-weight: 600; margin-bottom: 10px; }
+  .no-memo-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 4px 8px; margin-bottom: 12px; }
+  .no-memo-chip { padding: 7px 12px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--bg); color: var(--text-mid); font-size: 12px; cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 5px; }
+
+  .empty-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+  .empty-icon { font-size: 48px; margin-bottom: 14px; }
+  .empty-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text-mid); }
+  .empty-sub { font-size: 13px; }
+
+  /* ── Modal ── */
+  .overlay { position: fixed; inset: 0; z-index: 200; background: rgba(15,10,5,.55); backdrop-filter: blur(5px); display: none; align-items: flex-end; justify-content: center; padding: 0; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 20px 20px 0 0; width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto; box-shadow: 0 -8px 40px rgba(0,0,0,0.2); padding-bottom: env(safe-area-inset-bottom); }
+  .modal-head { background: linear-gradient(135deg,#FEF0ED,#FDE5DC); padding: 18px 18px 14px; border-bottom: 1.5px solid #F5D8CE; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; }
+  .modal-icon { width: 42px; height: 42px; border-radius: 11px; background: linear-gradient(135deg,#D4603A,#A83A1A); display: flex; align-items: center; justify-content: center; font-size: 20px; color: #fff; flex-shrink: 0; box-shadow: 0 3px 10px #C8503A55; }
+  .modal-title-wrap { flex: 1; min-width: 0; }
+  .modal-subtitle { font-size: 10px; color: var(--red); font-weight: 700; letter-spacing: .12em; margin-bottom: 3px; }
+  .modal-title { font-size: 17px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .modal-close { background: none; border: none; cursor: pointer; font-size: 18px; color: #C0A090; padding: 4px; flex-shrink: 0; }
+  .modal-body { padding: 18px 18px 4px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; font-weight: 700; color: #5A4A3A; margin-bottom: 5px; }
+  .field input, .field textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; color: var(--text); font-size: 15px; font-family: inherit; outline: none; }
+  .field textarea { resize: vertical; line-height: 1.7; min-height: 80px; }
+  .modal-actions { padding: 12px 18px 18px; border-top: 1px solid #F0E8E0; display: flex; gap: 8px; align-items: center; }
+  .btn-danger { padding: 11px 14px; border-radius: 10px; border: 1.5px solid #F0C0B0; background: #FEF8F6; color: var(--red); cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; }
+  .btn-cancel { padding: 11px 18px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: #8A7A6A; cursor: pointer; font-size: 14px; font-family: inherit; }
+  .btn-save { padding: 11px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg,#D4603A,#A83A1A); color: #fff; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 800; box-shadow: 0 3px 10px #C8503A55; flex: 1; }
+
+  /* hidden */
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="header">
+  <div class="header-top">
+    <div class="logo">
+      <div class="logo-icon">♨</div>
+      <div>
+        <div class="logo-sub">JAPAN ONSEN JOURNAL</div>
+        <div class="logo-title">温泉巡り帳</div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat-count">
+        <div class="stat-num" id="visitedCount">0</div>
+        <div class="stat-label">/ <span id="totalCount">0</span> 湯制覇</div>
+      </div>
+      <svg class="ring" width="56" height="56" id="progressRing" style="transform:rotate(-90deg)">
+        <circle cx="28" cy="28" r="22" fill="none" stroke="#EDE5DC" stroke-width="5"/>
+        <circle cx="28" cy="28" r="22" fill="none" stroke="#C8503A" stroke-width="5"
+          stroke-dasharray="0 138.2" stroke-linecap="round" id="ringArc" style="transition:stroke-dasharray .6s"/>
+        <text id="ringPct" x="28" y="28" text-anchor="middle" dominant-baseline="middle"
+          style="transform:rotate(90deg);transform-origin:28px 28px;fill:#C8503A;font-size:11px;font-weight:800;font-family:inherit">0%</text>
+      </svg>
+    </div>
+  </div>
+  <div class="region-bars" id="regionBars"></div>
+</header>
+
+<!-- ── Views ── -->
+
+<!-- LIST view -->
+<div class="view active" id="view-list">
+  <div class="filterbar" style="margin:0 -16px; padding:10px 16px;">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="search" id="searchInput" placeholder="温泉地・都道府県を検索…" oninput="renderList()">
+    </div>
+    <div class="region-chips" id="regionChips"></div>
+  </div>
+  <div style="height:12px"></div>
+  <div id="listContainer"></div>
+</div>
+
+<!-- REGION view -->
+<div class="view hidden" id="view-region">
+  <div id="regionContainer"></div>
+</div>
+
+<!-- MEMO view -->
+<div class="view hidden" id="view-memo">
+  <div class="memo-toolbar">
+    <div class="memo-summary" id="memoSummary"></div>
+    <div class="sort-group">
+      <button class="sort-btn active" onclick="setSort('date_desc')">新しい順</button>
+      <button class="sort-btn" onclick="setSort('date_asc')">古い順</button>
+      <button class="sort-btn" onclick="setSort('name')">名前順</button>
+    </div>
+  </div>
+  <div id="memoContainer"></div>
+</div>
+
+<!-- ── Bottom tabs ── -->
+<nav class="tabs">
+  <button class="tab active" id="tab-list" onclick="switchTab('list')">
+    <span class="tab-icon">📋</span>一覧
+  </button>
+  <button class="tab" id="tab-region" onclick="switchTab('region')">
+    <span class="tab-icon">🗾</span>地域別
+  </button>
+  <button class="tab" id="tab-memo" onclick="switchTab('memo')">
+    <span class="tab-icon">📖</span>旅のメモ帳
+    <span class="tab-dot hidden" id="memoDot"></span>
+  </button>
+</nav>
+
+<!-- ── Modal ── -->
+<div class="overlay" id="overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <div class="modal-icon">♨</div>
+      <div class="modal-title-wrap">
+        <div class="modal-subtitle" id="modalSubtitle">📍 訪問を記録</div>
+        <div class="modal-title" id="modalTitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>📅 訪問日</label>
+        <input type="date" id="fieldDate">
+      </div>
+      <div class="field">
+        <label>👥 一緒に行った人</label>
+        <input type="text" id="fieldWith" placeholder="ひとり旅・家族・友人の名前など">
+      </div>
+      <div class="field">
+        <label>📝 感想・メモ</label>
+        <textarea id="fieldMemo" placeholder="泉質、お気に入りの旅館、また行きたい！など自由に…"></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-danger hidden" id="btnDelete" onclick="deleteVisit()">取り消す</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn-save" onclick="saveModal()">保存 ✓</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── DATA ──
+const ONSEN_DATA = {
+  "北海道":["登別温泉","洞爺湖温泉","定山渓温泉","層雲峡温泉","十勝川温泉","阿寒湖温泉","川湯温泉","ニセコ温泉","湯の川温泉","豊富温泉"],
+  "青森":["酸ヶ湯温泉","浅虫温泉","古牧温泉","黒石温泉郷","十和田湖温泉","青荷温泉","蔦温泉","谷地温泉"],
+  "岩手":["花巻温泉","鉛温泉","大沢温泉","繋温泉","松川温泉","夏油温泉","網張温泉","藤三旅館"],
+  "宮城":["鳴子温泉","作並温泉","秋保温泉","東鳴子温泉","川渡温泉","中山平温泉"],
+  "秋田":["乳頭温泉郷","玉川温泉","田沢湖高原温泉","大館市大湯温泉","男鹿温泉","強首温泉","川原毛地獄"],
+  "山形":["蔵王温泉","銀山温泉","上山温泉","天童温泉","赤倉温泉","肘折温泉","湯野浜温泉"],
+  "福島":["東山温泉","芦ノ牧温泉","磐梯熱海温泉","高湯温泉","飯坂温泉","土湯温泉","裏磐梯温泉"],
+  "茨城":["袋田温泉","五浦温泉","大洗温泉","潮来温泉"],
+  "栃木":["那須温泉郷","鬼怒川温泉","日光湯元温泉","塩原温泉","川治温泉","湯西川温泉","龍王峡温泉"],
+  "群馬":["草津温泉","伊香保温泉","四万温泉","水上温泉","万座温泉","老神温泉","川古温泉","法師温泉"],
+  "埼玉":["小鹿野温泉","秩父温泉","都幾川温泉","名栗温泉"],
+  "千葉":["白浜温泉","鴨川温泉","勝浦温泉","犬吠埼温泉"],
+  "東京":["奥多摩温泉","青梅温泉","東京湾温泉","大田区黒湯"],
+  "神奈川":["箱根温泉","湯河原温泉","鶴巻温泉","七沢温泉"],
+  "新潟":["越後湯沢温泉","月岡温泉","瀬波温泉","燕温泉","松之山温泉","咲花温泉","貝掛温泉"],
+  "富山":["宇奈月温泉","立山温泉","庄川温泉","氷見温泉","新湯温泉"],
+  "石川":["和倉温泉","山中温泉","山代温泉","片山津温泉","白山白川郷温泉","辰口温泉"],
+  "福井":["あわら温泉","三方温泉","越前温泉","若狭有田温泉"],
+  "山梨":["石和温泉","下部温泉","西山温泉","奈良田温泉","湯村温泉"],
+  "長野":["別所温泉","野沢温泉","白骨温泉","鹿教湯温泉","浅間温泉","渋温泉","湯田中温泉","上諏訪温泉","昼神温泉"],
+  "岐阜":["下呂温泉","奥飛騨温泉郷","白川郷温泉","平湯温泉","新穂高温泉","湯屋温泉"],
+  "静岡":["熱海温泉","伊豆長岡温泉","修善寺温泉","堂ヶ島温泉","伊東温泉","下田温泉","土肥温泉","松崎温泉"],
+  "愛知":["湯谷温泉","蒲郡温泉","三谷温泉","西浦温泉"],
+  "三重":["湯の山温泉","長島温泉","榊原温泉","二見温泉"],
+  "滋賀":["雄琴温泉","彦根温泉","長浜温泉"],
+  "京都":["城崎温泉","天橋立温泉","るり渓温泉","湯の花温泉"],
+  "大阪":["犬鳴山温泉","箕面温泉","天然温泉なにわの湯"],
+  "兵庫":["有馬温泉","城崎温泉","洲本温泉","浜坂温泉","湯村温泉","宝塚温泉"],
+  "奈良":["洞川温泉","十津川温泉","入之波温泉","天の川温泉"],
+  "和歌山":["白浜温泉","龍神温泉","勝浦温泉","川湯温泉","湯の峰温泉"],
+  "鳥取":["三朝温泉","皆生温泉","東郷温泉","鳥取温泉"],
+  "島根":["玉造温泉","温泉津温泉","有福温泉","三瓶温泉"],
+  "岡山":["湯原温泉","奥津温泉","湯郷温泉","真賀温泉"],
+  "広島":["宮島温泉","湯来温泉","帝釈峡温泉","鞆の浦温泉"],
+  "山口":["湯田温泉","俵山温泉","川棚温泉","長門湯本温泉","別府弁天池温泉"],
+  "徳島":["祖谷温泉","鳴門温泉","みやび温泉","加賀須野温泉"],
+  "香川":["琴平温泉","塩江温泉","引田温泉"],
+  "愛媛":["道後温泉","今治温泉","鈍川温泉","奥道後温泉"],
+  "高知":["土佐山温泉","足摺温泉","安芸温泉","龍河温泉"],
+  "福岡":["二日市温泉","博多温泉","若宮温泉","脇田温泉","原鶴温泉"],
+  "佐賀":["嬉野温泉","武雄温泉","古湯温泉","熊の川温泉"],
+  "長崎":["雲仙温泉","小浜温泉","島原温泉","平戸温泉","壱岐温泉"],
+  "熊本":["黒川温泉","阿蘇温泉","山鹿温泉","菊池温泉","人吉温泉","垂玉温泉"],
+  "大分":["別府温泉","由布院温泉","湯布院温泉","長湯温泉","筋湯温泉","壁湯温泉","鉄輪温泉"],
+  "宮崎":["えびの高原温泉","青島温泉","日南温泉","綾温泉","妻湯温泉","霧島温泉"],
+  "鹿児島":["指宿温泉","霧島温泉","妙見温泉","垂水温泉","吹上温泉","奄美温泉"],
+  "沖縄":["沖縄那覇温泉","山川温泉","恩納温泉","豊崎温泉"],
+};
+
+const REGIONS = {
+  "北海道・東北":["北海道","青森","岩手","宮城","秋田","山形","福島"],
+  "関東":["茨城","栃木","群馬","埼玉","千葉","東京","神奈川"],
+  "中部":["新潟","富山","石川","福井","山梨","長野","岐阜","静岡","愛知"],
+  "近畿":["三重","滋賀","京都","大阪","兵庫","奈良","和歌山"],
+  "中国・四国":["鳥取","島根","岡山","広島","山口","徳島","香川","愛媛","高知"],
+  "九州・沖縄":["福岡","佐賀","長崎","熊本","大分","宮崎","鹿児島","沖縄"],
+};
+
+const RC = {
+  "北海道・東北":{bg:"var(--c1-bg)",acc:"var(--c1-acc)",light:"var(--c1-light)",text:"var(--c1-text)",hex:"#2E7DD1"},
+  "関東":        {bg:"var(--c2-bg)",acc:"var(--c2-acc)",light:"var(--c2-light)",text:"var(--c2-text)",hex:"#D95A2B"},
+  "中部":        {bg:"var(--c3-bg)",acc:"var(--c3-acc)",light:"var(--c3-light)",text:"var(--c3-text)",hex:"#1E9E62"},
+  "近畿":        {bg:"var(--c4-bg)",acc:"var(--c4-acc)",light:"var(--c4-light)",text:"var(--c4-text)",hex:"#7C45D4"},
+  "中国・四国":  {bg:"var(--c5-bg)",acc:"var(--c5-acc)",light:"var(--c5-light)",text:"var(--c5-text)",hex:"#B8890A"},
+  "九州・沖縄":  {bg:"var(--c6-bg)",acc:"var(--c6-acc)",light:"var(--c6-light)",text:"var(--c6-text)",hex:"#C4245A"},
+};
+
+const getPrefRegion = p => Object.keys(REGIONS).find(r => REGIONS[r].includes(p)) || null;
+const getOnsenPref  = o => Object.keys(ONSEN_DATA).find(p => ONSEN_DATA[p].includes(o)) || null;
+const totalOnsen    = Object.values(ONSEN_DATA).flat().length;
+const ALL_REGIONS   = ["全国", ...Object.keys(REGIONS)];
+
+// ── STATE ──
+const SK = "onsen-v2";
+let visited = {};
+let activeRegion = "全国";
+let expanded = {};
+let currentTab = "list";
+let modalOnsen = null;
+let sortMode = "date_desc";
+let noMemoOpen = false;
+
+try { const s = localStorage.getItem(SK); if (s) visited = JSON.parse(s); } catch {}
+
+function saveVisited() {
+  try { localStorage.setItem(SK, JSON.stringify(visited)); } catch {}
+}
+
+// ── STATS ──
+function updateStats() {
+  const cnt = Object.keys(visited).length;
+  const pct = Math.round((cnt / totalOnsen) * 100);
+  document.getElementById("visitedCount").textContent = cnt;
+  document.getElementById("totalCount").textContent = totalOnsen;
+  document.getElementById("ringPct").textContent = pct + "%";
+  const circ = 2 * Math.PI * 22;
+  document.getElementById("ringArc").setAttribute("stroke-dasharray", `${(pct/100)*circ} ${circ}`);
+
+  // region bars
+  const bars = document.getElementById("regionBars");
+  bars.innerHTML = Object.entries(REGIONS).map(([r, ps]) => {
+    const c = RC[r];
+    const tot = ps.flatMap(p => ONSEN_DATA[p]||[]).length;
+    const don = ps.flatMap(p => ONSEN_DATA[p]||[]).filter(o => visited[o]).length;
+    const p2  = tot ? Math.round((don/tot)*100) : 0;
+    return `<div class="rbar" style="background:${c.bg};border-color:${c.light}">
+      <div class="rbar-top">
+        <span class="rbar-name" style="color:${c.text}">${r}</span>
+        <span class="rbar-pct" style="color:${c.acc}">${p2}%</span>
+      </div>
+      <div class="rbar-track" style="background:${c.light}">
+        <div class="rbar-fill" style="width:${p2}%;background:${c.acc}"></div>
+      </div>
+      <div class="rbar-sub" style="color:${c.text}">${don}/${tot}</div>
+    </div>`;
+  }).join("");
+
+  // memo dot
+  const hasMemos = Object.values(visited).some(e => e && (e.date||e.memo||e.with));
+  document.getElementById("memoDot").classList.toggle("hidden", !hasMemos || currentTab === "memo");
+}
+
+// ── TAB SWITCH ──
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("view-" + tab).classList.remove("hidden");
+  document.getElementById("view-" + tab).classList.add("active");
+  document.getElementById("tab-" + tab).classList.add("active");
+  if (tab === "region") renderRegion();
+  if (tab === "memo")   renderMemo();
+  if (tab === "list")   renderList();
+  updateStats();
+}
+
+// ── REGION CHIPS ──
+function initChips() {
+  document.getElementById("regionChips").innerHTML = ALL_REGIONS.map(r => {
+    const c = RC[r];
+    return `<button class="chip ${r===activeRegion?"active":""}" id="chip-${r}"
+      style="${r===activeRegion&&c ? `border-color:${c.acc};background:${c.bg};color:${c.text}` : ""}"
+      onclick="setRegion('${r}')">${r}</button>`;
+  }).join("");
+}
+
+function setRegion(r) {
+  activeRegion = r;
+  initChips();
+  renderList();
+}
+
+// ── LIST RENDER ──
+function renderList() {
+  const q = document.getElementById("searchInput").value.trim();
+  const prefs = Object.keys(ONSEN_DATA).filter(pref => {
+    if (activeRegion !== "全国" && getPrefRegion(pref) !== activeRegion) return false;
+    if (q) return ONSEN_DATA[pref].some(o=>o.includes(q)) || pref.includes(q);
+    return true;
+  });
+  if (q) prefs.forEach(p => { expanded[p] = true; });
+
+  document.getElementById("listContainer").innerHTML = prefs.map(pref => {
+    const region = getPrefRegion(pref);
+    const c = RC[region] || {bg:"#F5F5F5",acc:"#888",light:"#DDD",text:"#444",hex:"#888"};
+    const total = ONSEN_DATA[pref].length;
+    const done  = ONSEN_DATA[pref].filter(o => visited[o]).length;
+    const pct   = total ? Math.round((done/total)*100) : 0;
+    const isOpen = !!expanded[pref];
+
+    const chips = isOpen ? ONSEN_DATA[pref].map(onsen => {
+      const isV = !!visited[onsen];
+      const entry = visited[onsen] || {};
+      return `<div class="onsen-btn">
+        <button class="onsen-chip ${isV?"visited":""}"
+          style="${isV ? `background:${c.acc};border-color:${c.acc}` : ""}"
+          onclick="toggleOnsen('${onsen}')">${isV?"✓ ":""}${onsen}</button>
+        ${isV ? `<button class="onsen-edit" onclick="openModal('${onsen}',false);event.stopPropagation()">✎</button>` : ""}
+        ${isV&&entry.date ? `<div class="date-badge" style="color:${c.hex};border-color:${c.hex}55">${entry.date}</div>` : ""}
+        ${isV&&entry.with ? `<div class="with-badge" style="background:${c.acc}">👥${entry.with}</div>` : ""}
+      </div>`;
+    }).join("") : "";
+
+    return `<div class="pref-card" style="${done>0?`border-color:${c.hex}55;box-shadow:0 2px 12px ${c.hex}18`:""}" id="card-${pref}">
+      <div class="pref-header" onclick="toggleExpand('${pref}')">
+        <div class="pref-icon" style="background:${done>0?c.acc:"#EDE5DC"};${done>0?`box-shadow:0 2px 8px ${c.hex}44`:""};color:${done>0?"#fff":"#C0B0A0"}">♨</div>
+        <div class="pref-info">
+          <div class="pref-name-row">
+            <span class="pref-name">${pref}</span>
+            <span class="pref-region-tag" style="background:${c.light};color:${c.text}">${region}</span>
+            ${done===total&&total>0?`<span class="pref-mastered">完全制覇！</span>`:""}
+          </div>
+          <div class="pref-bar-row">
+            <div class="pref-track"><div class="pref-fill" style="width:${pct}%;background:${c.acc}"></div></div>
+            <span class="pref-fraction" style="color:${done>0?c.hex:"#C0B0A0"}">${done}/${total}</span>
+          </div>
+        </div>
+        <span class="pref-arrow">${isOpen?"▲":"▼"}</span>
+      </div>
+      ${isOpen ? `<div class="onsen-list">${chips}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function toggleExpand(pref) {
+  expanded[pref] = !expanded[pref];
+  renderList();
+}
+
+function toggleOnsen(onsen) {
+  if (visited[onsen]) {
+    delete visited[onsen];
+    saveVisited();
+    updateStats();
+    renderList();
+    if (currentTab === "memo") renderMemo();
+  } else {
+    openModal(onsen, true);
+  }
+}
+
+// ── REGION VIEW ──
+function renderRegion() {
+  document.getElementById("regionContainer").innerHTML = Object.entries(REGIONS).map(([region, prefs]) => {
+    const c = RC[region];
+    const totalR = prefs.flatMap(p=>ONSEN_DATA[p]||[]).length;
+    const doneR  = prefs.flatMap(p=>ONSEN_DATA[p]||[]).filter(o=>visited[o]).length;
+    const pctR   = totalR ? Math.round((doneR/totalR)*100) : 0;
+    const rows = prefs.map(pref => {
+      const tot = ONSEN_DATA[pref].length;
+      const don = ONSEN_DATA[pref].filter(o=>visited[o]).length;
+      const p   = tot ? Math.round((don/tot)*100) : 0;
+      return `<div class="pref-row">
+        <div class="pref-row-top">
+          <span class="pref-row-name" style="font-weight:${don>0?700:400};color:${don>0?"#1A1410":"#A09080"}">${pref}</span>
+          <span class="pref-row-frac" style="color:${don>0?c.hex:"#C5B8AA"}">${don}/${tot}</span>
+        </div>
+        <div class="pref-track" style="height:6px;background:#EDE5DC;border-radius:3px">
+          <div class="pref-fill" style="width:${p}%;background:${p===100?c.acc:c.acc+"99"}"></div>
+        </div>
+      </div>`;
+    }).join("");
+    return `<div class="region-card" style="border-color:${c.light};${doneR>0?`box-shadow:0 3px 16px ${c.hex}18`:""}">
+      <div class="region-head" style="background:${c.bg};border-color:${c.light}">
+        <div class="region-head-top">
+          <div class="region-head-name" style="color:${c.text}">${region}</div>
+          <div class="region-head-pct" style="color:${c.acc}">${pctR}<span style="font-size:12px">%</span></div>
+        </div>
+        <div class="pref-track" style="height:8px;background:${c.light}">
+          <div class="pref-fill" style="width:${pctR}%;background:${c.acc}"></div>
+        </div>
+        <div class="region-head-sub" style="color:${c.text}">${doneR} / ${totalR} 湯</div>
+      </div>
+      <div class="region-body">${rows}</div>
+    </div>`;
+  }).join("");
+}
+
+// ── MEMO VIEW ──
+function setSort(mode) {
+  sortMode = mode;
+  document.querySelectorAll(".sort-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".sort-btn").forEach(b => {
+    if (b.textContent === (mode==="date_desc"?"新しい順":mode==="date_asc"?"古い順":"名前順")) b.classList.add("active");
+  });
+  renderMemo();
+}
+
+function renderMemo() {
+  const entries = Object.entries(visited).map(([onsen, entry]) => {
+    const pref = getOnsenPref(onsen) || "";
+    const region = getPrefRegion(pref) || "";
+    return { onsen, pref, region, ...(entry||{}) };
+  });
+
+  entries.sort((a,b) => {
+    if (sortMode==="date_desc") return (b.date||"").localeCompare(a.date||"");
+    if (sortMode==="date_asc")  return (a.date||"").localeCompare(b.date||"");
+    return a.onsen.localeCompare(b.onsen,"ja");
+  });
+
+  const withMemo = entries.filter(e => e.date||e.memo||e.with);
+  const noMemo   = entries.filter(e => !e.date&&!e.memo&&!e.with);
+
+  document.getElementById("memoSummary").innerHTML =
+    `${entries.length}湯 訪問済み <span style="color:var(--text-muted);font-weight:400">（メモあり ${withMemo.length}件）</span>`;
+
+  let html = "";
+
+  if (entries.length === 0) {
+    html = `<div class="empty-state">
+      <div class="empty-icon">♨</div>
+      <div class="empty-title">まだ記録がありません</div>
+      <div class="empty-sub">一覧タブから温泉を訪問済みにしましょう</div>
+    </div>`;
+  } else {
+    html += withMemo.map(e => memoCardHTML(e)).join("");
+
+    if (noMemo.length > 0) {
+      html += `<button class="no-memo-toggle" onclick="toggleNoMemo()">
+        <span>${noMemoOpen?"▼":"▶"}</span> メモ未記入の訪問済み（${noMemo.length}件）
+      </button>`;
+      if (noMemoOpen) {
+        html += `<div class="no-memo-chips">` + noMemo.map(e => {
+          const c = RC[e.region]||{acc:"#888",hex:"#888",light:"#DDD"};
+          return `<button class="no-memo-chip" onclick="openModal('${e.onsen}',false)" style="border-color:${c.light}">
+            <span style="color:${c.acc}">♨</span>${e.onsen}
+            <span style="font-size:10px;color:var(--text-muted)">＋メモ</span>
+          </button>`;
+        }).join("") + `</div>`;
+      }
+    }
+  }
+
+  document.getElementById("memoContainer").innerHTML = html;
+}
+
+function memoCardHTML(e) {
+  const c = RC[e.region] || {bg:"#F5F5F5",acc:"#888",light:"#DDD",text:"#444",hex:"#888"};
+  const inner = `
+    ${e.date ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${e.date.replace(/-/g," / ")}</span></div>` : ""}
+    ${e.with ? `<div class="memo-row"><span class="memo-row-icon">👥</span><span>${e.with}</span></div>` : ""}
+    ${e.memo ? `<div class="memo-text-box" style="border-color:${c.acc}"><div class="memo-text">${e.memo.replace(/</g,"&lt;")}</div></div>` : ""}
+    ${!e.date&&!e.with&&!e.memo ? `<div class="memo-empty">メモなし — タップして追加</div>` : ""}
+  `;
+  return `<div class="memo-card" style="border-color:${c.light};${`box-shadow:0 2px 10px ${c.hex}12`}">
+    <div class="memo-card-head" style="background:${c.bg};border-color:${c.light}">
+      <div class="memo-card-icon" style="background:${c.acc}">♨</div>
+      <div class="memo-card-title">
+        <div class="memo-card-name">${e.onsen}</div>
+        <div class="memo-card-tags">
+          <span class="memo-tag" style="background:${c.light};color:${c.text}">${e.region}</span>
+          ${e.pref ? `<span style="font-size:9px;color:var(--text-muted)">${e.pref}</span>` : ""}
+        </div>
+      </div>
+      <button class="memo-edit-btn" style="border-color:${c.light};color:${c.text}" onclick="openModal('${e.onsen}',false)">編集</button>
+    </div>
+    <div class="memo-card-body">${inner}</div>
+  </div>`;
+}
+
+function toggleNoMemo() {
+  noMemoOpen = !noMemoOpen;
+  renderMemo();
+}
+
+// ── MODAL ──
+function openModal(onsen, isNew) {
+  modalOnsen = onsen;
+  const entry = visited[onsen] || {};
+  document.getElementById("modalTitle").textContent = onsen;
+  document.getElementById("modalSubtitle").textContent = isNew ? "📍 訪問を記録" : "✏️ 記録を編集";
+  document.getElementById("fieldDate").value = entry.date || "";
+  document.getElementById("fieldWith").value = entry.with || "";
+  document.getElementById("fieldMemo").value = entry.memo || "";
+  document.getElementById("btnDelete").classList.toggle("hidden", isNew);
+  document.getElementById("overlay").classList.add("open");
+  setTimeout(() => document.getElementById("fieldDate").focus(), 100);
+}
+
+function closeModal() {
+  document.getElementById("overlay").classList.remove("open");
+  modalOnsen = null;
+}
+
+function saveModal() {
+  if (!modalOnsen) return;
+  visited[modalOnsen] = {
+    date: document.getElementById("fieldDate").value,
+    with: document.getElementById("fieldWith").value,
+    memo: document.getElementById("fieldMemo").value,
+  };
+  saveVisited();
+  closeModal();
+  updateStats();
+  renderList();
+  if (currentTab === "memo") renderMemo();
+}
+
+function deleteVisit() {
+  if (!modalOnsen) return;
+  delete visited[modalOnsen];
+  saveVisited();
+  closeModal();
+  updateStats();
+  renderList();
+  if (currentTab === "memo") renderMemo();
+}
+
+// ── INIT ──
+initChips();
+updateStats();
+renderList();
+</script>
+</body>
+</html>
