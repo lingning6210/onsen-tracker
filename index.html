@@ -171,6 +171,22 @@
   .btn-cancel { padding: 11px 18px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: #8A7A6A; cursor: pointer; font-size: 14px; font-family: inherit; }
   .btn-save { padding: 11px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg,#D4603A,#A83A1A); color: #fff; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 800; box-shadow: 0 3px 10px #C8503A55; flex: 1; }
 
+  /* ── Data management (backup / restore) ── */
+  .app-footer { padding: 24px 16px 34px; text-align: center; }
+  .data-btn { display: inline-flex; align-items: center; gap: 6px; padding: 13px 20px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .data-btn:active { background: var(--bg); }
+  .footer-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; line-height: 1.6; }
+  .data-section-title { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
+  .data-desc { font-size: 12px; color: var(--text-mid); line-height: 1.65; margin-bottom: 12px; }
+  .data-hint { font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-top: 12px; margin-bottom: 4px; }
+  .data-warn { font-size: 12px; color: var(--red-dark); background: var(--red-bg); border: 1px solid var(--red-light); border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; line-height: 1.65; }
+  .data-actions { display: flex; gap: 8px; }
+  .data-text { width: 100%; min-height: 92px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; font-size: 12px; line-height: 1.5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); resize: vertical; margin: 10px 0; outline: none; }
+  .data-divider { height: 1px; background: var(--border); margin: 22px 0; }
+  .file-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 13px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: var(--text-mid); font-size: 14px; font-weight: 700; cursor: pointer; }
+  .file-btn:active { background: var(--bg); }
+  .btn-wide { width: 100%; padding: 13px; font-weight: 700; }
+
   /* hidden */
   .hidden { display: none !important; }
 </style>
@@ -237,6 +253,12 @@
   <div id="memoContainer"></div>
 </div>
 
+<!-- ── Footer: data management ── -->
+<footer class="app-footer">
+  <button class="data-btn" onclick="openDataModal()">💾 データのバックアップ・復元</button>
+  <div class="footer-note">記録はこの端末のブラウザにのみ保存されます。<br>機種変更・ブラウザ変更の前にバックアップしましょう。</div>
+</footer>
+
 <!-- ── Bottom tabs ── -->
 <nav class="tabs">
   <button class="tab active" id="tab-list" onclick="switchTab('list')">
@@ -280,6 +302,57 @@
       <button class="btn-danger hidden" id="btnDelete" onclick="deleteVisit()">取り消す</button>
       <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
       <button class="btn-save" onclick="saveModal()">保存 ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Data management modal ── -->
+<div class="overlay" id="dataOverlay" onclick="closeDataModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <div class="modal-icon">💾</div>
+      <div class="modal-title-wrap">
+        <div class="modal-subtitle" id="dataSubtitle">大切な記録を守る</div>
+        <div class="modal-title">バックアップ・復元</div>
+      </div>
+      <button class="modal-close" onclick="closeDataModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Backup -->
+      <div class="data-section">
+        <div class="data-section-title">📤 バックアップ（書き出し）</div>
+        <div class="data-desc">
+          今の記録を1つのファイルに保存します。<br>
+          <b id="exportCount">0 件</b> の記録を書き出せます。
+        </div>
+        <div class="data-actions">
+          <button class="btn-save" onclick="downloadBackup()">⬇️ ダウンロード</button>
+          <button class="btn-cancel" id="shareBtn" onclick="shareBackup()" style="display:none">📨 共有</button>
+        </div>
+        <div class="data-hint">うまく保存できないときは、下の文字を全部コピーしてメール等に貼って保管してください。</div>
+        <textarea class="data-text" id="exportText" readonly onclick="this.select()"></textarea>
+        <button class="btn-cancel btn-wide" id="copyBtn" onclick="copyBackup()">📋 上の文字を全部コピー</button>
+      </div>
+
+      <div class="data-divider"></div>
+
+      <!-- Restore -->
+      <div class="data-section">
+        <div class="data-section-title">📥 復元（読み込み）</div>
+        <div class="data-warn">
+          ⚠️ 復元すると、今の記録は<b>すべて置き換わります</b>（追加ではありません）。
+          復元する前に、念のため今の記録もバックアップしておくと安心です。
+        </div>
+        <label class="file-btn">
+          📁 ファイルを選んで復元
+          <input type="file" accept="application/json" onchange="importFromFile(this)" hidden>
+        </label>
+        <div class="data-hint">コピーで持ち出した場合は、下の欄に貼り付けて復元できます。</div>
+        <textarea class="data-text" id="importText" placeholder="バックアップした文字をここに貼り付け…"></textarea>
+        <button class="btn-cancel btn-wide" onclick="importFromPaste()">📥 貼り付けた内容から復元</button>
+      </div>
+
     </div>
   </div>
 </div>
@@ -698,6 +771,194 @@ function deleteVisit() {
   updateStats();
   renderList();
   if (currentTab === "memo") renderMemo();
+}
+
+// ── DATA MANAGEMENT (backup / restore) ──
+const BACKUP_VERSION = 1;
+
+// Count total visit records across all onsen.
+function countRecords(v) {
+  return Object.values(v || {}).reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+}
+function countOnsen(v) {
+  return Object.keys(v || {}).filter(o => Array.isArray(v[o]) && v[o].length > 0).length;
+}
+
+function buildBackupObject() {
+  return { version: BACKUP_VERSION, exportedAt: new Date().toISOString(), data: visits };
+}
+function buildBackupJSON() {
+  return JSON.stringify(buildBackupObject(), null, 2);
+}
+function backupFilename() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  const ymd = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  return `onsen-tracker-backup-${ymd}.json`;
+}
+
+function openDataModal() {
+  try {
+    document.getElementById("exportText").value = buildBackupJSON();
+    document.getElementById("exportCount").textContent = `${countRecords(visits)} 件（${countOnsen(visits)} 湯）`;
+  } catch (e) {
+    document.getElementById("exportText").value = "";
+  }
+  document.getElementById("importText").value = "";
+  // Show the 共有 button only if the device supports Web Share.
+  document.getElementById("shareBtn").style.display = (navigator.share) ? "" : "none";
+  document.getElementById("dataOverlay").classList.add("open");
+}
+function closeDataModal() {
+  document.getElementById("dataOverlay").classList.remove("open");
+}
+
+// Export: download as a JSON file via Blob + object URL.
+function downloadBackup() {
+  let url = null;
+  try {
+    const blob = new Blob([buildBackupJSON()], { type: "application/json" });
+    url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = backupFilename();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (e) {
+    alert("ダウンロードに失敗しました。下の文字を全部コピーして保管してください。");
+  } finally {
+    // Release the object URL after the download has had a chance to start.
+    if (url) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) {} }, 2000);
+  }
+}
+
+// Fallback 1: copy the JSON text to the clipboard.
+async function copyBackup() {
+  const ta = document.getElementById("exportText");
+  const btn = document.getElementById("copyBtn");
+  const done = () => { btn.textContent = "✓ コピーしました"; setTimeout(() => { btn.textContent = "📋 上の文字を全部コピー"; }, 1800); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(ta.value);
+      done();
+      return;
+    }
+  } catch (e) { /* fall through to legacy path */ }
+  try {
+    ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);
+    if (document.execCommand("copy")) { done(); return; }
+  } catch (e) {}
+  alert("自動でコピーできませんでした。上の文字を長押しして「すべて選択」→「コピー」してください。");
+}
+
+// Fallback 2: open the share sheet (iOS / Android).
+async function shareBackup() {
+  const json = buildBackupJSON();
+  try {
+    if (navigator.canShare && typeof File !== "undefined") {
+      const file = new File([json], backupFilename(), { type: "application/json" });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "温泉巡り帳バックアップ" });
+        return;
+      }
+    }
+    await navigator.share({ title: "温泉巡り帳バックアップ", text: json });
+  } catch (e) {
+    // User cancelled or sharing is unavailable — nothing to do.
+  }
+}
+
+// Import: file chooser.
+function importFromFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { processImportText(String(reader.result)); input.value = ""; };
+  reader.onerror = () => { alert("ファイルの読み込みに失敗しました。もう一度お試しください。"); input.value = ""; };
+  reader.readAsText(file);
+}
+
+// Import: pasted text.
+function importFromPaste() {
+  const text = document.getElementById("importText").value;
+  if (!text.trim()) { alert("復元する内容を上の欄に貼り付けてください。"); return; }
+  processImportText(text);
+}
+
+// Validate a parsed backup object. Returns { ok, error } or { ok, data }.
+function validateBackup(obj) {
+  if (typeof obj !== "object" || obj === null || Array.isArray(obj))
+    return { ok: false, error: "ファイルの形式が正しくありません。（温泉巡り帳のバックアップではないようです）" };
+  if (!("version" in obj))
+    return { ok: false, error: "version（バージョン情報）がありません。温泉巡り帳のバックアップファイルか確認してください。" };
+  if (obj.version !== BACKUP_VERSION)
+    return { ok: false, error: `未対応のバージョンです（version: ${obj.version}）。このアプリで作った version ${BACKUP_VERSION} のファイルを使ってください。` };
+  if (!("data" in obj) || typeof obj.data !== "object" || obj.data === null || Array.isArray(obj.data))
+    return { ok: false, error: "記録データ（data）が見つからないか、形式が正しくありません。" };
+  for (const [onsen, arr] of Object.entries(obj.data)) {
+    if (!Array.isArray(arr))
+      return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」が記録の一覧になっていません）` };
+    for (const rec of arr) {
+      if (typeof rec !== "object" || rec === null || Array.isArray(rec))
+        return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」の中に壊れた記録があります）` };
+      for (const f of ["id", "date", "with", "memo"]) {
+        if (f in rec && typeof rec[f] !== "string")
+          return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」の ${f} が文字列ではありません）` };
+      }
+    }
+  }
+  return { ok: true, data: obj.data };
+}
+
+// Normalise validated data into the current { onsen: [{id,date,with,memo}] } shape.
+function normalizeData(data) {
+  const out = {};
+  Object.entries(data).forEach(([onsen, arr]) => {
+    if (!Array.isArray(arr)) return;
+    const recs = arr.map(rec => ({
+      id:   (rec && typeof rec.id === "string" && rec.id) ? rec.id : genId(),
+      date: (rec && typeof rec.date === "string") ? rec.date : "",
+      with: (rec && typeof rec.with === "string") ? rec.with : "",
+      memo: (rec && typeof rec.memo === "string") ? rec.memo : "",
+    }));
+    if (recs.length) out[onsen] = recs;
+  });
+  return out;
+}
+
+// The one destructive path — validate, confirm with counts, then overwrite.
+function processImportText(text) {
+  let obj;
+  try {
+    obj = JSON.parse(text);
+  } catch (e) {
+    alert("JSON として読み込めませんでした。ファイルや貼り付けた文字が途中で欠けていないか確認してください。");
+    return;
+  }
+  const result = validateBackup(obj);
+  if (!result.ok) {
+    alert("復元できませんでした。\n\n" + result.error);
+    return;
+  }
+  const incoming = normalizeData(result.data);
+  const curR = countRecords(visits), curO = countOnsen(visits);
+  const newR = countRecords(incoming), newO = countOnsen(incoming);
+  const msg =
+    `現在の記録 ${curR} 件（${curO} 湯）が、\n` +
+    `ファイル内の ${newR} 件（${newO} 湯）で完全に置き換えられます。\n\n` +
+    `※ 追加ではなく「置き換え」です。今の記録は消えます。\n` +
+    `※ この操作は取り消せません。\n\n` +
+    `置き換えてよろしいですか？`;
+  if (!confirm(msg)) return;
+  try {
+    localStorage.setItem(SK, JSON.stringify(incoming));
+  } catch (e) {
+    alert("保存に失敗しました。（プライベートモードや空き容量をご確認ください）\n現在の記録はそのまま残っています。");
+    return;
+  }
+  alert(`復元しました（${newR} 件）。画面を更新します。`);
+  location.reload();
 }
 
 // ── INIT ──
