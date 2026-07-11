@@ -166,6 +166,12 @@
   .field label { display: block; font-size: 12px; font-weight: 700; color: #5A4A3A; margin-bottom: 5px; }
   .field input, .field textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; color: var(--text); font-size: 15px; font-family: inherit; outline: none; }
   .field textarea { resize: vertical; line-height: 1.7; min-height: 80px; }
+  /* iOS Safari date inputs have a large intrinsic width; these keep them inside the modal */
+  .field input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; text-align: center; }
+  .date-range { display: flex; align-items: center; gap: 8px; }
+  .date-range input { flex: 1 1 0; min-width: 0; width: auto; }
+  .date-range-sep { flex-shrink: 0; color: var(--text-muted); font-size: 15px; font-weight: 700; }
+  .field-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
   .modal-actions { padding: 12px 18px 18px; border-top: 1px solid #F0E8E0; display: flex; gap: 8px; align-items: center; }
   .btn-danger { padding: 11px 14px; border-radius: 10px; border: 1.5px solid #F0C0B0; background: #FEF8F6; color: var(--red); cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; }
   .btn-cancel { padding: 11px 18px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: #8A7A6A; cursor: pointer; font-size: 14px; font-family: inherit; }
@@ -287,7 +293,12 @@
     <div class="modal-body">
       <div class="field">
         <label>📅 訪問日</label>
-        <input type="date" id="fieldDate">
+        <div class="date-range">
+          <input type="date" id="fieldDate" aria-label="開始日">
+          <span class="date-range-sep">〜</span>
+          <input type="date" id="fieldDateEnd" aria-label="終了日">
+        </div>
+        <div class="field-note">連泊・湯めぐりは終了日も入力できます（日帰りは空欄でOK）</div>
       </div>
       <div class="field">
         <label>👥 一緒に行った人</label>
@@ -449,6 +460,12 @@ function isVisited(onsen) { return !!(visits[onsen] && visits[onsen].length > 0)
 function visitCount(onsen) { return (visits[onsen]||[]).length; }
 function escapeHTML(s) { return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function escapeJS(s)   { return String(s||"").replace(/'/g, "\\'"); }
+function formatDateRange(start, end) {
+  if (!start) return "";
+  const s = start.replace(/-/g, " / ");
+  if (!end || end === start) return s;
+  return `${s} 〜 ${end.replace(/-/g, " / ")}`;
+}
 
 // Load (with migration from v2)
 try {
@@ -686,8 +703,9 @@ function memoCardHTML(r) {
   const visitNum = sortedByDate.findIndex(v => v.id === r.id) + 1;
   const totalVisits = arr.length;
 
+  const dateLabel = formatDateRange(r.date, r.dateEnd);
   const inner = `
-    ${r.date ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${r.date.replace(/-/g," / ")}</span></div>` : ""}
+    ${dateLabel ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${dateLabel}</span></div>` : ""}
     ${r.with ? `<div class="memo-row"><span class="memo-row-icon">👥</span><span>${escapeHTML(r.with)}</span></div>` : ""}
     ${r.memo ? `<div class="memo-text-box" style="border-color:${c.acc}"><div class="memo-text">${escapeHTML(r.memo)}</div></div>` : ""}
     ${!r.date&&!r.with&&!r.memo ? `<div class="memo-empty">日付・メモなし — 編集から追加</div>` : ""}
@@ -713,7 +731,7 @@ function memoCardHTML(r) {
 function openModal(onsen, recordId) {
   modalState = { onsen, recordId };
   const isNew = !recordId;
-  let rec = { date: "", with: "", memo: "" };
+  let rec = { date: "", dateEnd: "", with: "", memo: "" };
   if (recordId) {
     rec = (visits[onsen]||[]).find(v => v.id === recordId) || rec;
   } else {
@@ -725,6 +743,7 @@ function openModal(onsen, recordId) {
     ? (cnt > 0 ? `📍 ${cnt+1}回目の訪問を記録` : "📍 訪問を記録")
     : "✏️ 記録を編集";
   document.getElementById("fieldDate").value = rec.date || "";
+  document.getElementById("fieldDateEnd").value = rec.dateEnd || "";
   document.getElementById("fieldWith").value = rec.with || "";
   document.getElementById("fieldMemo").value = rec.memo || "";
   document.getElementById("btnDelete").classList.toggle("hidden", isNew);
@@ -739,8 +758,15 @@ function closeModal() {
 function saveModal() {
   if (!modalState) return;
   const { onsen, recordId } = modalState;
+  // Visit date may be a single day or a start–end period.
+  let date = document.getElementById("fieldDate").value;
+  let dateEnd = document.getElementById("fieldDateEnd").value;
+  if (!date && dateEnd) { date = dateEnd; dateEnd = ""; }           // only end given → treat as single day
+  if (date && dateEnd && dateEnd < date) { [date, dateEnd] = [dateEnd, date]; } // keep start ≤ end
+  if (dateEnd === date) dateEnd = "";                                // same day → not a range
   const data = {
-    date: document.getElementById("fieldDate").value,
+    date,
+    dateEnd,
     with: document.getElementById("fieldWith").value,
     memo: document.getElementById("fieldMemo").value,
   };
@@ -902,7 +928,7 @@ function validateBackup(obj) {
     for (const rec of arr) {
       if (typeof rec !== "object" || rec === null || Array.isArray(rec))
         return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」の中に壊れた記録があります）` };
-      for (const f of ["id", "date", "with", "memo"]) {
+      for (const f of ["id", "date", "dateEnd", "with", "memo"]) {
         if (f in rec && typeof rec[f] !== "string")
           return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」の ${f} が文字列ではありません）` };
       }
@@ -917,9 +943,10 @@ function normalizeData(data) {
   Object.entries(data).forEach(([onsen, arr]) => {
     if (!Array.isArray(arr)) return;
     const recs = arr.map(rec => ({
-      id:   (rec && typeof rec.id === "string" && rec.id) ? rec.id : genId(),
-      date: (rec && typeof rec.date === "string") ? rec.date : "",
-      with: (rec && typeof rec.with === "string") ? rec.with : "",
+      id:      (rec && typeof rec.id === "string" && rec.id) ? rec.id : genId(),
+      date:    (rec && typeof rec.date === "string") ? rec.date : "",
+      dateEnd: (rec && typeof rec.dateEnd === "string") ? rec.dateEnd : "",
+      with:    (rec && typeof rec.with === "string") ? rec.with : "",
       memo: (rec && typeof rec.memo === "string") ? rec.memo : "",
     }));
     if (recs.length) out[onsen] = recs;
