@@ -167,18 +167,28 @@
   .field label .optional { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-left: 6px; }
   .field input, .field textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; color: var(--text); font-size: 15px; font-family: inherit; outline: none; }
   .field textarea { resize: vertical; line-height: 1.7; min-height: 80px; }
-  /* iOS Safari date inputs have a large intrinsic width; these keep them inside the modal */
-  .field input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; text-align: center; }
-  .date-range { display: flex; align-items: flex-end; gap: 8px; }
-  .date-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-  .date-col-label { font-size: 10px; font-weight: 700; color: var(--text-muted); padding-left: 2px; }
-  .date-range input { width: 100%; min-width: 0; }
-  .date-range-sep { flex-shrink: 0; color: var(--text-muted); font-size: 15px; font-weight: 700; padding-bottom: 12px; }
   .field-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
-  .date-quick { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
-  .date-quick .field-note { margin-top: 0; }
-  .date-today-btn { flex-shrink: 0; padding: 7px 13px; border-radius: 8px; border: 1.5px solid var(--red-light); background: var(--red-bg); color: var(--red); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
-  .date-today-btn:active { background: var(--red-light); }
+  /* ── Inline range calendar ── */
+  .cal { border: 1.5px solid #DDD5CA; border-radius: 12px; padding: 10px; background: #FAF7F4; }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .cal-title { font-size: 14px; font-weight: 800; color: var(--text); }
+  .cal-nav { width: 36px; height: 36px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--white); color: var(--red); font-size: 20px; line-height: 1; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+  .cal-nav:active { background: var(--red-bg); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .cal-dow span { text-align: center; font-size: 10px; font-weight: 700; color: var(--text-muted); padding: 4px 0; }
+  .cal-day { aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text); background: none; border: none; cursor: pointer; font-family: inherit; padding: 0; }
+  .cal-day.empty { visibility: hidden; pointer-events: none; }
+  .cal-day.today { font-weight: 800; box-shadow: inset 0 0 0 1.5px var(--red-light); border-radius: 8px; }
+  .cal-day.inrange { background: var(--red-bg); }
+  .cal-day.edge { background: var(--red); color: #fff; font-weight: 800; }
+  .cal-day.edge-start { border-radius: 9px 0 0 9px; }
+  .cal-day.edge-end { border-radius: 0 9px 9px 0; }
+  .cal-day.edge-single { border-radius: 9px; }
+  .cal-foot { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .cal-sel { font-size: 12px; font-weight: 700; color: var(--red-dark); flex: 1; min-width: 0; line-height: 1.4; }
+  .cal-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .cal-btn { padding: 8px 13px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .cal-btn:active { background: var(--bg); }
   .modal-actions { padding: 12px 18px 18px; border-top: 1px solid #F0E8E0; display: flex; gap: 8px; align-items: center; }
   .btn-danger { padding: 11px 14px; border-radius: 10px; border: 1.5px solid #F0C0B0; background: #FEF8F6; color: var(--red); cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; }
   .btn-cancel { padding: 11px 18px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: #8A7A6A; cursor: pointer; font-size: 14px; font-family: inherit; }
@@ -334,21 +344,27 @@
     <div class="modal-body">
       <div class="field">
         <label>📅 訪問日<span class="optional">(任意)</span></label>
-        <div class="date-range">
-          <div class="date-col">
-            <span class="date-col-label">開始日</span>
-            <input type="date" id="fieldDate" aria-label="開始日">
+        <div class="cal">
+          <div class="cal-head">
+            <button type="button" class="cal-nav" onclick="calMove(-1)" aria-label="前の月">‹</button>
+            <div class="cal-title" id="calTitle"></div>
+            <button type="button" class="cal-nav" onclick="calMove(1)" aria-label="次の月">›</button>
           </div>
-          <span class="date-range-sep">〜</span>
-          <div class="date-col">
-            <span class="date-col-label">終了日</span>
-            <input type="date" id="fieldDateEnd" aria-label="終了日">
+          <div class="cal-grid cal-dow">
+            <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+          </div>
+          <div class="cal-grid" id="calDays"></div>
+          <div class="cal-foot">
+            <div class="cal-sel" id="calSel"></div>
+            <div class="cal-actions">
+              <button type="button" class="cal-btn" onclick="calToday()">今日</button>
+              <button type="button" class="cal-btn" onclick="calClear()">クリア</button>
+            </div>
           </div>
         </div>
-        <div class="date-quick">
-          <button type="button" class="date-today-btn" onclick="setDateToday()">📅 開始日を今日に</button>
-          <span class="field-note">1日だけなら開始日のみ／連泊は終了日も入力（範囲で記録できます）</span>
-        </div>
+        <input type="hidden" id="fieldDate">
+        <input type="hidden" id="fieldDateEnd">
+        <div class="field-note">開始日をタップ→終了日をタップで範囲。1日だけなら1回タップ（任意）。</div>
       </div>
       <div class="field">
         <label>👥 一緒に行った人<span class="optional">(任意)</span></label>
@@ -467,11 +483,95 @@ function formatDateRange(start, end) {
 }
 function todayLocal() {
   const d = new Date();
+  return isoOf(d);
+}
+function isoOf(d) {
   const p = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
-function setDateToday() {
-  document.getElementById("fieldDate").value = todayLocal();
+function parseISO(s) {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m-1, d);
+}
+
+// ── Inline range calendar (visit date) ──
+let calYear, calMonth;              // month currently shown
+let pickStart = null, pickEnd = null; // selected range (YYYY-MM-DD)
+let pickPhase = "complete";         // "complete" → next tap starts fresh; "picking" → next tap sets the other end
+
+function initCalendar(start, end) {
+  pickStart = start || null;
+  pickEnd = (end && end !== start) ? end : null;
+  pickPhase = "complete";           // an edited record is a finished selection; re-tapping starts over
+  const base = pickStart ? parseISO(pickStart) : new Date();
+  calYear = base.getFullYear();
+  calMonth = base.getMonth();
+  syncHiddenDates();
+  renderCalendar();
+}
+function syncHiddenDates() {
+  document.getElementById("fieldDate").value = pickStart || "";
+  document.getElementById("fieldDateEnd").value = (pickEnd && pickEnd !== pickStart) ? pickEnd : "";
+}
+function renderCalendar() {
+  document.getElementById("calTitle").textContent = `${calYear}年${calMonth+1}月`;
+  const startDow = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const today = todayLocal();
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push('<button type="button" class="cal-day empty"></button>');
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = isoOf(new Date(calYear, calMonth, d));
+    let cls = "cal-day";
+    if (pickStart && pickEnd) {
+      if (iso === pickStart) cls += " edge edge-start";
+      else if (iso === pickEnd) cls += " edge edge-end";
+      else if (iso > pickStart && iso < pickEnd) cls += " inrange";
+    } else if (pickStart && iso === pickStart) {
+      cls += " edge edge-single";
+    }
+    if (iso === today) cls += " today";
+    cells.push(`<button type="button" class="${cls}" onclick="calPick('${iso}')">${d}</button>`);
+  }
+  document.getElementById("calDays").innerHTML = cells.join("");
+  const sel = document.getElementById("calSel");
+  if (!pickStart) sel.textContent = "未選択（開始日をタップ）";
+  else if (pickEnd) sel.textContent = formatDateRange(pickStart, pickEnd);
+  else sel.textContent = formatDateRange(pickStart) + (pickPhase === "picking" ? "（もう1日タップで範囲／このまま1日でもOK）" : "");
+}
+function calPick(iso) {
+  if (pickPhase === "complete") {               // start a fresh selection
+    pickStart = iso; pickEnd = null;
+    pickPhase = "picking";
+  } else {                                       // second endpoint
+    if (iso === pickStart) pickEnd = null;       // same day → single
+    else if (iso < pickStart) { pickEnd = pickStart; pickStart = iso; } // earlier → becomes start
+    else pickEnd = iso;                          // later → end of range
+    pickPhase = "complete";
+  }
+  syncHiddenDates();
+  renderCalendar();
+}
+function calMove(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  else if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+function calToday() {
+  const t = todayLocal();
+  pickStart = t; pickEnd = null;
+  pickPhase = "picking";            // allow a following tap to add an end date
+  const d = parseISO(t);
+  calYear = d.getFullYear(); calMonth = d.getMonth();
+  syncHiddenDates();
+  renderCalendar();
+}
+function calClear() {
+  pickStart = null; pickEnd = null;
+  pickPhase = "complete";
+  syncHiddenDates();
+  renderCalendar();
 }
 
 // Load (with migration from v2)
@@ -749,8 +849,7 @@ function openModal(onsen, recordId) {
   document.getElementById("modalSubtitle").textContent = isNew
     ? (cnt > 0 ? `📍 ${cnt+1}回目の訪問を記録` : "📍 訪問を記録")
     : "✏️ 記録を編集";
-  document.getElementById("fieldDate").value = rec.date || "";
-  document.getElementById("fieldDateEnd").value = rec.dateEnd || "";
+  initCalendar(rec.date || "", rec.dateEnd || "");
   document.getElementById("fieldWith").value = rec.with || "";
   document.getElementById("fieldMemo").value = rec.memo || "";
   document.getElementById("btnDelete").classList.toggle("hidden", isNew);
