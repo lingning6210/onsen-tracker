@@ -178,17 +178,15 @@
   .btn-save { padding: 11px 24px; border-radius: 10px; border: none; background: linear-gradient(135deg,#D4603A,#A83A1A); color: #fff; cursor: pointer; font-size: 14px; font-family: inherit; font-weight: 800; box-shadow: 0 3px 10px #C8503A55; flex: 1; }
 
   /* ── Data management (backup / restore) ── */
-  .app-footer { padding: 24px 16px 34px; text-align: center; }
-  .data-btn { display: inline-flex; align-items: center; gap: 6px; padding: 13px 20px; border-radius: 12px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
-  .data-btn:active { background: var(--bg); }
-  .footer-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; line-height: 1.6; }
+  .settings-intro { font-size: 12px; color: var(--text-mid); line-height: 1.7; margin-bottom: 14px; }
+  .settings-card { background: var(--white); border: 1.5px solid var(--border); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 1px 8px rgba(0,0,0,0.05); }
+  .settings-card:last-child { margin-bottom: 4px; }
   .data-section-title { font-size: 15px; font-weight: 800; margin-bottom: 6px; }
   .data-desc { font-size: 12px; color: var(--text-mid); line-height: 1.65; margin-bottom: 12px; }
   .data-hint { font-size: 11px; color: var(--text-muted); line-height: 1.6; margin-top: 12px; margin-bottom: 4px; }
   .data-warn { font-size: 12px; color: var(--red-dark); background: var(--red-bg); border: 1px solid var(--red-light); border-radius: 8px; padding: 9px 11px; margin-bottom: 12px; line-height: 1.65; }
   .data-actions { display: flex; gap: 8px; }
   .data-text { width: 100%; min-height: 92px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; font-size: 12px; line-height: 1.5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); resize: vertical; margin: 10px 0; outline: none; }
-  .data-divider { height: 1px; background: var(--border); margin: 22px 0; }
   .file-btn { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; padding: 13px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: var(--text-mid); font-size: 14px; font-weight: 700; cursor: pointer; }
   .file-btn:active { background: var(--bg); }
   .btn-wide { width: 100%; padding: 13px; font-weight: 700; }
@@ -259,11 +257,44 @@
   <div id="memoContainer"></div>
 </div>
 
-<!-- ── Footer: data management ── -->
-<footer class="app-footer">
-  <button class="data-btn" onclick="openDataModal()">💾 データのバックアップ・復元</button>
-  <div class="footer-note">記録はこの端末のブラウザにのみ保存されます。<br>機種変更・ブラウザ変更の前にバックアップしましょう。</div>
-</footer>
+<!-- SETTINGS view -->
+<div class="view hidden" id="view-settings">
+  <div class="settings-intro">
+    記録はこの端末のブラウザにのみ保存されます。<br>機種変更・ブラウザ変更の前にバックアップしましょう。
+  </div>
+
+  <!-- Backup -->
+  <div class="settings-card">
+    <div class="data-section-title">📤 バックアップ（書き出し）</div>
+    <div class="data-desc">
+      今の記録を1つのファイルに保存します。<br>
+      <b id="exportCount">0 件</b> の記録を書き出せます。
+    </div>
+    <div class="data-actions">
+      <button class="btn-save" onclick="downloadBackup()">⬇️ ダウンロード</button>
+      <button class="btn-cancel" id="shareBtn" onclick="shareBackup()" style="display:none">📨 共有</button>
+    </div>
+    <div class="data-hint">うまく保存できないときは、下の文字を全部コピーしてメール等に貼って保管してください。</div>
+    <textarea class="data-text" id="exportText" readonly onclick="this.select()"></textarea>
+    <button class="btn-cancel btn-wide" id="copyBtn" onclick="copyBackup()">📋 上の文字を全部コピー</button>
+  </div>
+
+  <!-- Restore -->
+  <div class="settings-card">
+    <div class="data-section-title">📥 復元（読み込み）</div>
+    <div class="data-warn">
+      ⚠️ 復元すると、今の記録は<b>すべて置き換わります</b>（追加ではありません）。
+      復元する前に、念のため今の記録もバックアップしておくと安心です。
+    </div>
+    <label class="file-btn">
+      📁 ファイルを選んで復元
+      <input type="file" accept="application/json" onchange="importFromFile(this)" hidden>
+    </label>
+    <div class="data-hint">コピーで持ち出した場合は、下の欄に貼り付けて復元できます。</div>
+    <textarea class="data-text" id="importText" placeholder="バックアップした文字をここに貼り付け…"></textarea>
+    <button class="btn-cancel btn-wide" onclick="importFromPaste()">📥 貼り付けた内容から復元</button>
+  </div>
+</div>
 
 <!-- ── Bottom tabs ── -->
 <nav class="tabs">
@@ -276,6 +307,9 @@
   <button class="tab" id="tab-memo" onclick="switchTab('memo')">
     <span class="tab-icon">📖</span>旅のメモ帳
     <span class="tab-dot hidden" id="memoDot"></span>
+  </button>
+  <button class="tab" id="tab-settings" onclick="switchTab('settings')">
+    <span class="tab-icon">⚙️</span>設定
   </button>
 </nav>
 
@@ -313,57 +347,6 @@
       <button class="btn-danger hidden" id="btnDelete" onclick="deleteVisit()">取り消す</button>
       <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
       <button class="btn-save" onclick="saveModal()">保存 ✓</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Data management modal ── -->
-<div class="overlay" id="dataOverlay" onclick="closeDataModal()">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-head">
-      <div class="modal-icon">💾</div>
-      <div class="modal-title-wrap">
-        <div class="modal-subtitle" id="dataSubtitle">大切な記録を守る</div>
-        <div class="modal-title">バックアップ・復元</div>
-      </div>
-      <button class="modal-close" onclick="closeDataModal()">✕</button>
-    </div>
-    <div class="modal-body">
-
-      <!-- Backup -->
-      <div class="data-section">
-        <div class="data-section-title">📤 バックアップ（書き出し）</div>
-        <div class="data-desc">
-          今の記録を1つのファイルに保存します。<br>
-          <b id="exportCount">0 件</b> の記録を書き出せます。
-        </div>
-        <div class="data-actions">
-          <button class="btn-save" onclick="downloadBackup()">⬇️ ダウンロード</button>
-          <button class="btn-cancel" id="shareBtn" onclick="shareBackup()" style="display:none">📨 共有</button>
-        </div>
-        <div class="data-hint">うまく保存できないときは、下の文字を全部コピーしてメール等に貼って保管してください。</div>
-        <textarea class="data-text" id="exportText" readonly onclick="this.select()"></textarea>
-        <button class="btn-cancel btn-wide" id="copyBtn" onclick="copyBackup()">📋 上の文字を全部コピー</button>
-      </div>
-
-      <div class="data-divider"></div>
-
-      <!-- Restore -->
-      <div class="data-section">
-        <div class="data-section-title">📥 復元（読み込み）</div>
-        <div class="data-warn">
-          ⚠️ 復元すると、今の記録は<b>すべて置き換わります</b>（追加ではありません）。
-          復元する前に、念のため今の記録もバックアップしておくと安心です。
-        </div>
-        <label class="file-btn">
-          📁 ファイルを選んで復元
-          <input type="file" accept="application/json" onchange="importFromFile(this)" hidden>
-        </label>
-        <div class="data-hint">コピーで持ち出した場合は、下の欄に貼り付けて復元できます。</div>
-        <textarea class="data-text" id="importText" placeholder="バックアップした文字をここに貼り付け…"></textarea>
-        <button class="btn-cancel btn-wide" onclick="importFromPaste()">📥 貼り付けた内容から復元</button>
-      </div>
-
     </div>
   </div>
 </div>
@@ -530,9 +513,10 @@ function switchTab(tab) {
   document.getElementById("view-" + tab).classList.remove("hidden");
   document.getElementById("view-" + tab).classList.add("active");
   document.getElementById("tab-" + tab).classList.add("active");
-  if (tab === "region") renderRegion();
-  if (tab === "memo")   renderMemo();
-  if (tab === "list")   renderList();
+  if (tab === "region")   renderRegion();
+  if (tab === "memo")     renderMemo();
+  if (tab === "list")     renderList();
+  if (tab === "settings") renderSettings();
   updateStats();
 }
 
@@ -823,20 +807,16 @@ function backupFilename() {
   return `onsen-tracker-backup-${ymd}.json`;
 }
 
-function openDataModal() {
+// Populate the Settings tab's export area with the current data.
+function renderSettings() {
   try {
     document.getElementById("exportText").value = buildBackupJSON();
     document.getElementById("exportCount").textContent = `${countRecords(visits)} 件（${countOnsen(visits)} 湯）`;
   } catch (e) {
     document.getElementById("exportText").value = "";
   }
-  document.getElementById("importText").value = "";
   // Show the 共有 button only if the device supports Web Share.
   document.getElementById("shareBtn").style.display = (navigator.share) ? "" : "none";
-  document.getElementById("dataOverlay").classList.add("open");
-}
-function closeDataModal() {
-  document.getElementById("dataOverlay").classList.remove("open");
 }
 
 // Export: download as a JSON file via Blob + object URL.
