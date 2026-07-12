@@ -168,8 +168,13 @@
   .field input, .field textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; color: var(--text); font-size: 15px; font-family: inherit; outline: none; }
   .field textarea { resize: vertical; line-height: 1.7; min-height: 80px; }
   .field-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
-  /* ── Inline range calendar ── */
-  .cal { border: 1.5px solid #DDD5CA; border-radius: 12px; padding: 10px; background: #FAF7F4; }
+  /* ── Date field + range calendar popup ── */
+  .date-display { width: 100%; text-align: left; padding: 12px 14px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; color: var(--text); font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .date-display.empty { color: var(--text-muted); font-weight: 400; }
+  .date-display:active { background: #F0E8E0; }
+  .cal-pop { position: fixed; inset: 0; z-index: 300; background: rgba(15,10,5,.45); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; padding: 20px; }
+  .cal-pop.open { display: flex; }
+  .cal-card { background: var(--white); border-radius: 18px; padding: 14px; width: 100%; max-width: 360px; box-shadow: 0 12px 48px rgba(0,0,0,0.28); }
   .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .cal-title { font-size: 14px; font-weight: 800; color: var(--text); }
   .cal-nav { width: 36px; height: 36px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--white); color: var(--red); font-size: 20px; line-height: 1; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
@@ -184,11 +189,11 @@
   .cal-day.edge-start { border-radius: 9px 0 0 9px; }
   .cal-day.edge-end { border-radius: 0 9px 9px 0; }
   .cal-day.edge-single { border-radius: 9px; }
-  .cal-foot { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .cal-sel { font-size: 12px; font-weight: 700; color: var(--red-dark); flex: 1; min-width: 0; line-height: 1.4; }
-  .cal-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .cal-btn { padding: 8px 13px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .cal-sel { font-size: 13px; font-weight: 700; color: var(--red-dark); text-align: center; line-height: 1.4; margin: 12px 2px 0; min-height: 18px; }
+  .cal-pop-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .cal-btn { flex: 1; padding: 11px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
   .cal-btn:active { background: var(--bg); }
+  .cal-btn.primary { border: none; background: linear-gradient(135deg,#D4603A,#A83A1A); color: #fff; font-weight: 800; box-shadow: 0 3px 10px #C8503A55; }
   .modal-actions { padding: 12px 18px 18px; border-top: 1px solid #F0E8E0; display: flex; gap: 8px; align-items: center; }
   .btn-danger { padding: 11px 14px; border-radius: 10px; border: 1.5px solid #F0C0B0; background: #FEF8F6; color: var(--red); cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; }
   .btn-cancel { padding: 11px 18px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: #8A7A6A; cursor: pointer; font-size: 14px; font-family: inherit; }
@@ -344,27 +349,10 @@
     <div class="modal-body">
       <div class="field">
         <label>📅 訪問日<span class="optional">(任意)</span></label>
-        <div class="cal">
-          <div class="cal-head">
-            <button type="button" class="cal-nav" onclick="calMove(-1)" aria-label="前の月">‹</button>
-            <div class="cal-title" id="calTitle"></div>
-            <button type="button" class="cal-nav" onclick="calMove(1)" aria-label="次の月">›</button>
-          </div>
-          <div class="cal-grid cal-dow">
-            <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
-          </div>
-          <div class="cal-grid" id="calDays"></div>
-          <div class="cal-foot">
-            <div class="cal-sel" id="calSel"></div>
-            <div class="cal-actions">
-              <button type="button" class="cal-btn" onclick="calToday()">今日</button>
-              <button type="button" class="cal-btn" onclick="calClear()">クリア</button>
-            </div>
-          </div>
-        </div>
+        <button type="button" class="date-display empty" id="dateDisplay" onclick="openCal()">日付を選ぶ</button>
         <input type="hidden" id="fieldDate">
         <input type="hidden" id="fieldDateEnd">
-        <div class="field-note">開始日をタップ→終了日をタップで範囲。1日だけなら1回タップ（任意）。</div>
+        <div class="field-note">タップして開始日→終了日を選ぶと範囲で記録できます（1日だけでもOK・任意）。</div>
       </div>
       <div class="field">
         <label>👥 一緒に行った人<span class="optional">(任意)</span></label>
@@ -379,6 +367,27 @@
       <button class="btn-danger hidden" id="btnDelete" onclick="deleteVisit()">取り消す</button>
       <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
       <button class="btn-save" onclick="saveModal()">保存 ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Date range calendar popup ── -->
+<div class="cal-pop" id="calPop" onclick="closeCal(event)">
+  <div class="cal-card" onclick="event.stopPropagation()">
+    <div class="cal-head">
+      <button type="button" class="cal-nav" onclick="calMove(-1)" aria-label="前の月">‹</button>
+      <div class="cal-title" id="calTitle"></div>
+      <button type="button" class="cal-nav" onclick="calMove(1)" aria-label="次の月">›</button>
+    </div>
+    <div class="cal-grid cal-dow">
+      <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+    </div>
+    <div class="cal-grid" id="calDays"></div>
+    <div class="cal-sel" id="calSel"></div>
+    <div class="cal-pop-actions">
+      <button type="button" class="cal-btn" onclick="calClear()">クリア</button>
+      <button type="button" class="cal-btn" onclick="calToday()">今日</button>
+      <button type="button" class="cal-btn primary" onclick="closeCalDone()">完了</button>
     </div>
   </div>
 </div>
@@ -512,6 +521,31 @@ function initCalendar(start, end) {
 function syncHiddenDates() {
   document.getElementById("fieldDate").value = pickStart || "";
   document.getElementById("fieldDateEnd").value = (pickEnd && pickEnd !== pickStart) ? pickEnd : "";
+  updateDateDisplay();
+}
+function updateDateDisplay() {
+  const el = document.getElementById("dateDisplay");
+  if (!pickStart) {
+    el.textContent = "日付を選ぶ";
+    el.classList.add("empty");
+  } else {
+    el.textContent = pickEnd ? formatDateRange(pickStart, pickEnd) : formatDateRange(pickStart);
+    el.classList.remove("empty");
+  }
+}
+function openCal() {
+  const base = pickStart ? parseISO(pickStart) : new Date();
+  calYear = base.getFullYear();
+  calMonth = base.getMonth();
+  renderCalendar();
+  document.getElementById("calPop").classList.add("open");
+}
+function closeCal(e) {                 // backdrop tap: only close if the backdrop itself was clicked
+  if (e && e.target.id !== "calPop") return;
+  document.getElementById("calPop").classList.remove("open");
+}
+function closeCalDone() {
+  document.getElementById("calPop").classList.remove("open");
 }
 function renderCalendar() {
   document.getElementById("calTitle").textContent = `${calYear}年${calMonth+1}月`;
@@ -551,6 +585,8 @@ function calPick(iso) {
   }
   syncHiddenDates();
   renderCalendar();
+  // When a two-day range is completed, close the popup automatically.
+  if (pickPhase === "complete" && pickEnd) setTimeout(closeCalDone, 220);
 }
 function calMove(delta) {
   calMonth += delta;
