@@ -169,9 +169,11 @@
   .field textarea { resize: vertical; line-height: 1.7; min-height: 80px; }
   /* iOS Safari date inputs have a large intrinsic width; these keep them inside the modal */
   .field input[type="date"] { -webkit-appearance: none; appearance: none; min-width: 0; text-align: center; }
-  .date-range { display: flex; align-items: center; gap: 8px; }
-  .date-range input { flex: 1 1 0; min-width: 0; width: auto; }
-  .date-range-sep { flex-shrink: 0; color: var(--text-muted); font-size: 15px; font-weight: 700; }
+  .date-range { display: flex; align-items: flex-end; gap: 8px; }
+  .date-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .date-col-label { font-size: 10px; font-weight: 700; color: var(--text-muted); padding-left: 2px; }
+  .date-range input { width: 100%; min-width: 0; }
+  .date-range-sep { flex-shrink: 0; color: var(--text-muted); font-size: 15px; font-weight: 700; padding-bottom: 12px; }
   .field-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
   .date-quick { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
   .date-quick .field-note { margin-top: 0; }
@@ -333,13 +335,19 @@
       <div class="field">
         <label>📅 訪問日<span class="optional">(任意)</span></label>
         <div class="date-range">
-          <input type="date" id="fieldDate" aria-label="開始日">
+          <div class="date-col">
+            <span class="date-col-label">開始日</span>
+            <input type="date" id="fieldDate" aria-label="開始日">
+          </div>
           <span class="date-range-sep">〜</span>
-          <input type="date" id="fieldDateEnd" aria-label="終了日">
+          <div class="date-col">
+            <span class="date-col-label">終了日</span>
+            <input type="date" id="fieldDateEnd" aria-label="終了日">
+          </div>
         </div>
         <div class="date-quick">
-          <button type="button" class="date-today-btn" onclick="setDateToday()">📅 今日にする</button>
-          <span class="field-note">連泊・湯めぐりは終了日も入力（日帰りは空欄でOK）</span>
+          <button type="button" class="date-today-btn" onclick="setDateToday()">📅 開始日を今日に</button>
+          <span class="field-note">1日だけなら開始日のみ／連泊は終了日も入力（範囲で記録できます）</span>
         </div>
       </div>
       <div class="field">
