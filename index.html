@@ -173,6 +173,10 @@
   .date-range input { flex: 1 1 0; min-width: 0; width: auto; }
   .date-range-sep { flex-shrink: 0; color: var(--text-muted); font-size: 15px; font-weight: 700; }
   .field-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+  .date-quick { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .date-quick .field-note { margin-top: 0; }
+  .date-today-btn { flex-shrink: 0; padding: 7px 13px; border-radius: 8px; border: 1.5px solid var(--red-light); background: var(--red-bg); color: var(--red); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .date-today-btn:active { background: var(--red-light); }
   .modal-actions { padding: 12px 18px 18px; border-top: 1px solid #F0E8E0; display: flex; gap: 8px; align-items: center; }
   .btn-danger { padding: 11px 14px; border-radius: 10px; border: 1.5px solid #F0C0B0; background: #FEF8F6; color: var(--red); cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; }
   .btn-cancel { padding: 11px 18px; border-radius: 10px; border: 1.5px solid #D5CCC3; background: var(--white); color: #8A7A6A; cursor: pointer; font-size: 14px; font-family: inherit; }
@@ -333,7 +337,10 @@
           <span class="date-range-sep">〜</span>
           <input type="date" id="fieldDateEnd" aria-label="終了日">
         </div>
-        <div class="field-note">連泊・湯めぐりは終了日も入力できます（日帰りは空欄でOK）</div>
+        <div class="date-quick">
+          <button type="button" class="date-today-btn" onclick="setDateToday()">📅 今日にする</button>
+          <span class="field-note">連泊・湯めぐりは終了日も入力（日帰りは空欄でOK）</span>
+        </div>
       </div>
       <div class="field">
         <label>👥 一緒に行った人<span class="optional">(任意)</span></label>
@@ -449,6 +456,14 @@ function formatDateRange(start, end) {
   const s = start.replace(/-/g, " / ");
   if (!end || end === start) return s;
   return `${s} 〜 ${end.replace(/-/g, " / ")}`;
+}
+function todayLocal() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function setDateToday() {
+  document.getElementById("fieldDate").value = todayLocal();
 }
 
 // Load (with migration from v2)
@@ -719,9 +734,8 @@ function openModal(onsen, recordId) {
   let rec = { date: "", dateEnd: "", with: "", memo: "" };
   if (recordId) {
     rec = (visits[onsen]||[]).find(v => v.id === recordId) || rec;
-  } else {
-    rec.date = new Date().toISOString().slice(0, 10); // today
   }
+  // New records start with a blank date; the "今日にする" button fills today on demand.
   document.getElementById("modalTitle").textContent = onsen;
   const cnt = (visits[onsen]||[]).length;
   document.getElementById("modalSubtitle").textContent = isNew
