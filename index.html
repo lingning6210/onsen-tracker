@@ -164,6 +164,7 @@
   .modal-body { padding: 18px 18px 4px; }
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 12px; font-weight: 700; color: #5A4A3A; margin-bottom: 5px; }
+  .field label .optional { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-left: 6px; }
   .field input, .field textarea { width: 100%; padding: 11px 13px; border-radius: 10px; border: 1.5px solid #DDD5CA; background: #FAF7F4; color: var(--text); font-size: 15px; font-family: inherit; outline: none; }
   .field textarea { resize: vertical; line-height: 1.7; min-height: 80px; }
   /* iOS Safari date inputs have a large intrinsic width; these keep them inside the modal */
@@ -326,7 +327,7 @@
     </div>
     <div class="modal-body">
       <div class="field">
-        <label>📅 訪問日</label>
+        <label>📅 訪問日<span class="optional">(任意)</span></label>
         <div class="date-range">
           <input type="date" id="fieldDate" aria-label="開始日">
           <span class="date-range-sep">〜</span>
@@ -335,11 +336,11 @@
         <div class="field-note">連泊・湯めぐりは終了日も入力できます（日帰りは空欄でOK）</div>
       </div>
       <div class="field">
-        <label>👥 一緒に行った人</label>
+        <label>👥 一緒に行った人<span class="optional">(任意)</span></label>
         <input type="text" id="fieldWith" placeholder="ひとり旅・家族・友人の名前など">
       </div>
       <div class="field">
-        <label>📝 感想・メモ</label>
+        <label>📝 感想・メモ<span class="optional">(任意)</span></label>
         <textarea id="fieldMemo" placeholder="泉質、お気に入りの旅館、また行きたい！など自由に…"></textarea>
       </div>
     </div>
