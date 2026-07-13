@@ -229,7 +229,13 @@
   .tag-suggest-chip:active { background: var(--bg); }
   /* Tags on memo cards */
   .memo-tags-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
-  .memo-tagchip { padding: 4px 9px; border-radius: 12px; background: var(--red-bg); border: 1px solid var(--red-light); color: var(--red-dark); font-size: 11px; font-weight: 700; }
+  .memo-tagchip { padding: 4px 9px; border-radius: 12px; background: var(--red-bg); border: 1px solid var(--red-light); color: var(--red-dark); font-size: 11px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .memo-tagchip.active { background: var(--red); border-color: var(--red); color: #fff; }
+  /* Tag filter bar (memo view) */
+  .memo-tagfilter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+  .memo-tagfilter:empty { display: none; }
+  .tagfilter-chip { padding: 8px 12px; border-radius: 15px; border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid); font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .tagfilter-chip.active { background: var(--red); border-color: var(--red); color: #fff; }
 
   /* hidden */
   .hidden { display: none !important; }
@@ -294,6 +300,7 @@
       <button class="sort-btn" onclick="setSort('name')">名前順</button>
     </div>
   </div>
+  <div class="memo-tagfilter" id="memoTagFilter"></div>
   <div id="memoContainer"></div>
 </div>
 
@@ -504,6 +511,7 @@ let expanded = {};
 let currentTab = "list";
 let modalState = null; // { onsen, recordId|null }
 let sortMode = "date_desc";
+let memoTagFilter = null; // selected tag in the memo view (null = すべて)
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function saveVisits() { try { localStorage.setItem(SK, JSON.stringify(visits)); } catch {} }
@@ -898,29 +906,59 @@ function renderMemo() {
     });
   });
 
-  allRecords.sort((a,b) => {
+  // Tag filter: drop a stale selection, render chips, then filter for display.
+  const tagsAvail = allTags();
+  if (memoTagFilter && !tagsAvail.includes(memoTagFilter)) memoTagFilter = null;
+  renderMemoTagFilter(tagsAvail, allRecords);
+  let records = memoTagFilter
+    ? allRecords.filter(r => Array.isArray(r.tags) && r.tags.includes(memoTagFilter))
+    : allRecords;
+
+  records.sort((a,b) => {
     if (sortMode==="date_desc") return (b.date||"").localeCompare(a.date||"");
     if (sortMode==="date_asc")  return (a.date||"").localeCompare(b.date||"");
     return a.onsen.localeCompare(b.onsen,"ja");
   });
 
-  const totalVisits = allRecords.length;
-  const uniqueOnsens = new Set(allRecords.map(r => r.onsen)).size;
+  const totalVisits = records.length;
+  const uniqueOnsens = new Set(records.map(r => r.onsen)).size;
 
-  document.getElementById("memoSummary").innerHTML =
-    `${uniqueOnsens}湯 訪問済み <span style="color:var(--text-muted);font-weight:400">（全${totalVisits}回の記録）</span>`;
+  document.getElementById("memoSummary").innerHTML = memoTagFilter
+    ? `🏷「${escapeHTML(memoTagFilter)}」で絞り込み中 <span style="color:var(--text-muted);font-weight:400">${uniqueOnsens}湯・${totalVisits}件</span>`
+    : `${uniqueOnsens}湯 訪問済み <span style="color:var(--text-muted);font-weight:400">（全${totalVisits}回の記録）</span>`;
 
   let html = "";
-  if (allRecords.length === 0) {
-    html = `<div class="empty-state">
-      <div class="empty-icon">♨</div>
-      <div class="empty-title">まだ記録がありません</div>
-      <div class="empty-sub">一覧タブから温泉をタップして記録しましょう</div>
-    </div>`;
+  if (records.length === 0) {
+    html = memoTagFilter
+      ? `<div class="empty-state">
+          <div class="empty-icon">🏷</div>
+          <div class="empty-title">「${escapeHTML(memoTagFilter)}」の記録はありません</div>
+          <div class="empty-sub">上の「すべて」で絞り込みを解除できます</div>
+        </div>`
+      : `<div class="empty-state">
+          <div class="empty-icon">♨</div>
+          <div class="empty-title">まだ記録がありません</div>
+          <div class="empty-sub">一覧タブから温泉をタップして記録しましょう</div>
+        </div>`;
   } else {
-    html += allRecords.map(r => memoCardHTML(r)).join("");
+    html += records.map(r => memoCardHTML(r)).join("");
   }
   document.getElementById("memoContainer").innerHTML = html;
+}
+
+function renderMemoTagFilter(tagsAvail, allRecords) {
+  const el = document.getElementById("memoTagFilter");
+  if (!tagsAvail.length) { el.innerHTML = ""; return; }
+  const countFor = t => allRecords.filter(r => Array.isArray(r.tags) && r.tags.includes(t)).length;
+  let chips = `<button type="button" class="tagfilter-chip ${!memoTagFilter?"active":""}" onclick="setMemoTag(null)">すべて</button>`;
+  chips += tagsAvail.map(t =>
+    `<button type="button" class="tagfilter-chip ${memoTagFilter===t?"active":""}" onclick="setMemoTag('${escapeJS(t)}')">🏷 ${escapeHTML(t)} <span style="opacity:.55">${countFor(t)}</span></button>`
+  ).join("");
+  el.innerHTML = chips;
+}
+function setMemoTag(t) {
+  memoTagFilter = (memoTagFilter === t) ? null : t; // tap the active one again to clear
+  renderMemo();
 }
 
 function memoCardHTML(r) {
@@ -936,7 +974,7 @@ function memoCardHTML(r) {
     ${dateLabel ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${dateLabel}</span></div>` : ""}
     ${r.with ? `<div class="memo-row"><span class="memo-row-icon">👥</span><span>${escapeHTML(r.with)}</span></div>` : ""}
     ${r.memo ? `<div class="memo-text-box" style="border-color:${c.acc}"><div class="memo-text">${escapeHTML(r.memo)}</div></div>` : ""}
-    ${tags.length ? `<div class="memo-tags-row">${tags.map(t => `<span class="memo-tagchip">🏷 ${escapeHTML(t)}</span>`).join("")}</div>` : ""}
+    ${tags.length ? `<div class="memo-tags-row">${tags.map(t => `<button type="button" class="memo-tagchip${memoTagFilter===t?" active":""}" onclick="setMemoTag('${escapeJS(t)}')">🏷 ${escapeHTML(t)}</button>`).join("")}</div>` : ""}
     ${!r.date&&!r.with&&!r.memo&&!tags.length ? `<div class="memo-empty">日付・メモなし — 編集から追加</div>` : ""}
   `;
   return `<div class="memo-card" style="border-color:${c.light};box-shadow:0 2px 10px ${c.hex}12">
