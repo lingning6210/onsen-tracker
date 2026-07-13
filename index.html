@@ -213,6 +213,24 @@
   .file-btn:active { background: var(--bg); }
   .btn-wide { width: 100%; padding: 13px; font-weight: 700; }
 
+  /* ── Tags / classification ── */
+  .tag-input-row { display: flex; gap: 8px; }
+  .tag-input-row input { flex: 1 1 0; min-width: 0; width: auto; }
+  .tag-add-btn { flex-shrink: 0; padding: 0 18px; border-radius: 10px; border: none; background: linear-gradient(135deg,#D4603A,#A83A1A); color: #fff; font-weight: 800; font-size: 13px; font-family: inherit; cursor: pointer; }
+  .tag-add-btn:active { opacity: .85; }
+  .tag-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag-chips:empty { margin-top: 0; }
+  .tag-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 14px; background: var(--red-bg); border: 1.5px solid var(--red-light); color: var(--red-dark); font-size: 12px; font-weight: 700; }
+  .tag-chip button { border: none; background: none; color: var(--red); font-size: 14px; cursor: pointer; padding: 0; line-height: 1; font-family: inherit; }
+  .tag-suggest { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+  .tag-suggest:empty { margin-top: 0; }
+  .tag-suggest-label { font-size: 11px; color: var(--text-muted); font-weight: 700; margin-right: 2px; }
+  .tag-suggest-chip { padding: 6px 10px; border-radius: 14px; background: var(--white); border: 1.5px dashed var(--border); color: var(--text-mid); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .tag-suggest-chip:active { background: var(--bg); }
+  /* Tags on memo cards */
+  .memo-tags-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .memo-tagchip { padding: 4px 9px; border-radius: 12px; background: var(--red-bg); border: 1px solid var(--red-light); color: var(--red-dark); font-size: 11px; font-weight: 700; }
+
   /* hidden */
   .hidden { display: none !important; }
 </style>
@@ -361,6 +379,15 @@
       <div class="field">
         <label>📝 感想・メモ<span class="optional">(任意)</span></label>
         <textarea id="fieldMemo" placeholder="泉質、お気に入りの旅館、また行きたい！など自由に…"></textarea>
+      </div>
+      <div class="field">
+        <label>🏷 タグ・分類<span class="optional">(任意・複数可)</span></label>
+        <div class="tag-input-row">
+          <input type="text" id="tagInput" placeholder="例: 露天風呂、家族旅行、再訪したい…" onkeydown="tagInputKey(event)">
+          <button type="button" class="tag-add-btn" onclick="addTagFromInput()">追加</button>
+        </div>
+        <div class="tag-chips" id="tagChips"></div>
+        <div class="tag-suggest" id="tagSuggest"></div>
       </div>
     </div>
     <div class="modal-actions">
@@ -610,6 +637,62 @@ function calClear() {
   renderCalendar();
 }
 
+// ── Tags / classification (free-form, multiple per record) ──
+let modalTags = [];
+
+// Clean a list of tags: strings only, trimmed, capped length, de-duplicated, empties dropped.
+function normalizeTags(arr) {
+  if (!Array.isArray(arr)) return [];
+  const out = [];
+  arr.forEach(t => {
+    if (typeof t !== "string") return;
+    let v = t.trim();
+    if (!v) return;
+    if (v.length > 30) v = v.slice(0, 30);
+    if (!out.includes(v)) out.push(v);
+  });
+  return out;
+}
+// All tags ever used, for the suggestion chips.
+function allTags() {
+  const set = new Set();
+  Object.values(visits).forEach(arr => (arr || []).forEach(r => (r.tags || []).forEach(t => set.add(t))));
+  return [...set].sort((a, b) => a.localeCompare(b, "ja"));
+}
+function renderTagEditor() {
+  const chipsEl = document.getElementById("tagChips");
+  chipsEl.innerHTML = modalTags.map((t, i) =>
+    `<span class="tag-chip">${escapeHTML(t)}<button type="button" onclick="removeTag(${i})" aria-label="削除">✕</button></span>`
+  ).join("");
+  const remaining = allTags().filter(t => !modalTags.includes(t));
+  const sugEl = document.getElementById("tagSuggest");
+  sugEl.innerHTML = remaining.length
+    ? `<span class="tag-suggest-label">よく使うタグ:</span>` + remaining.map(t =>
+        `<button type="button" class="tag-suggest-chip" onclick="addTag('${escapeJS(t)}')">${escapeHTML(t)}</button>`
+      ).join("")
+    : "";
+}
+function addTag(t) {
+  t = (t || "").trim();
+  if (!t) return;
+  if (t.length > 30) t = t.slice(0, 30);
+  if (!modalTags.includes(t)) modalTags.push(t);
+  renderTagEditor();
+}
+function addTagFromInput() {
+  const inp = document.getElementById("tagInput");
+  inp.value.split(/[,、]/).forEach(addTag);  // allow comma / 、 separated input
+  inp.value = "";
+  inp.focus();
+}
+function tagInputKey(e) {
+  if (e.key === "Enter") { e.preventDefault(); addTagFromInput(); }
+}
+function removeTag(i) {
+  modalTags.splice(i, 1);
+  renderTagEditor();
+}
+
 // Load (with migration from v2)
 try {
   const s = localStorage.getItem(SK);
@@ -848,11 +931,13 @@ function memoCardHTML(r) {
   const totalVisits = arr.length;
 
   const dateLabel = formatDateRange(r.date, r.dateEnd);
+  const tags = Array.isArray(r.tags) ? r.tags : [];
   const inner = `
     ${dateLabel ? `<div class="memo-row"><span class="memo-row-icon">📅</span><span style="font-weight:600;color:#3A2A1A">${dateLabel}</span></div>` : ""}
     ${r.with ? `<div class="memo-row"><span class="memo-row-icon">👥</span><span>${escapeHTML(r.with)}</span></div>` : ""}
     ${r.memo ? `<div class="memo-text-box" style="border-color:${c.acc}"><div class="memo-text">${escapeHTML(r.memo)}</div></div>` : ""}
-    ${!r.date&&!r.with&&!r.memo ? `<div class="memo-empty">日付・メモなし — 編集から追加</div>` : ""}
+    ${tags.length ? `<div class="memo-tags-row">${tags.map(t => `<span class="memo-tagchip">🏷 ${escapeHTML(t)}</span>`).join("")}</div>` : ""}
+    ${!r.date&&!r.with&&!r.memo&&!tags.length ? `<div class="memo-empty">日付・メモなし — 編集から追加</div>` : ""}
   `;
   return `<div class="memo-card" style="border-color:${c.light};box-shadow:0 2px 10px ${c.hex}12">
     <div class="memo-card-head" style="background:${c.bg};border-color:${c.light}">
@@ -875,7 +960,7 @@ function memoCardHTML(r) {
 function openModal(onsen, recordId) {
   modalState = { onsen, recordId };
   const isNew = !recordId;
-  let rec = { date: "", dateEnd: "", with: "", memo: "" };
+  let rec = { date: "", dateEnd: "", with: "", memo: "", tags: [] };
   if (recordId) {
     rec = (visits[onsen]||[]).find(v => v.id === recordId) || rec;
   }
@@ -888,6 +973,9 @@ function openModal(onsen, recordId) {
   initCalendar(rec.date || "", rec.dateEnd || "");
   document.getElementById("fieldWith").value = rec.with || "";
   document.getElementById("fieldMemo").value = rec.memo || "";
+  document.getElementById("tagInput").value = "";
+  modalTags = normalizeTags(rec.tags);
+  renderTagEditor();
   document.getElementById("btnDelete").classList.toggle("hidden", isNew);
   document.getElementById("overlay").classList.add("open");
 }
@@ -906,11 +994,15 @@ function saveModal() {
   if (!date && dateEnd) { date = dateEnd; dateEnd = ""; }           // only end given → treat as single day
   if (date && dateEnd && dateEnd < date) { [date, dateEnd] = [dateEnd, date]; } // keep start ≤ end
   if (dateEnd === date) dateEnd = "";                                // same day → not a range
+  // Include any tag still typed but not yet added.
+  const pending = document.getElementById("tagInput").value;
+  if (pending.trim()) pending.split(/[,、]/).forEach(addTag);
   const data = {
     date,
     dateEnd,
     with: document.getElementById("fieldWith").value,
     memo: document.getElementById("fieldMemo").value,
+    tags: normalizeTags(modalTags),
   };
   if (!visits[onsen]) visits[onsen] = [];
   if (recordId) {
@@ -1070,6 +1162,12 @@ function validateBackup(obj) {
         if (f in rec && typeof rec[f] !== "string")
           return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」の ${f} が文字列ではありません）` };
       }
+      if ("tags" in rec) {
+        if (!Array.isArray(rec.tags))
+          return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」の tags が配列ではありません）` };
+        if (rec.tags.some(t => typeof t !== "string"))
+          return { ok: false, error: `記録の形式が正しくありません。（「${onsen}」のタグに文字列以外が含まれています）` };
+      }
     }
   }
   return { ok: true, data: obj.data };
@@ -1085,7 +1183,8 @@ function normalizeData(data) {
       date:    (rec && typeof rec.date === "string") ? rec.date : "",
       dateEnd: (rec && typeof rec.dateEnd === "string") ? rec.dateEnd : "",
       with:    (rec && typeof rec.with === "string") ? rec.with : "",
-      memo: (rec && typeof rec.memo === "string") ? rec.memo : "",
+      memo:    (rec && typeof rec.memo === "string") ? rec.memo : "",
+      tags:    normalizeTags(rec && rec.tags),
     }));
     if (recs.length) out[onsen] = recs;
   });
